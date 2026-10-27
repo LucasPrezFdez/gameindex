@@ -353,7 +353,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
               className="sr-only"
               onChange={handleBannerFileChange}
             />
-            <div className="absolute right-3 top-3 z-10 flex gap-2 opacity-0 pointer-events-none transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+            <div className="absolute right-3 top-3 z-10 flex gap-2 opacity-0 pointer-events-none transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
               <button
                 type="button"
                 disabled={bannerSaving}
@@ -584,23 +584,27 @@ export function UserProfileHeader({ profile, stats }: Props) {
         />
       )}
       {bannerAdjustSource && (
-        <ImageAdjustDialog
-          mode="banner"
-          source={bannerAdjustSource}
-          onClose={() => setBannerAdjustSource(null)}
-          onConfirm={async (dataUrl) => {
-            try {
-              await saveBannerImage(dataUrl);
-              setBannerAdjustSource(null);
-            } catch (error) {
-              throw new Error(
-                error instanceof Error
-                  ? error.message
-                  : "No se pudo actualizar el banner.",
-              );
-            }
-          }}
-        />
+        // Portal: la tarjeta del perfil usa backdrop-blur, que convierte en contenedor a los
+        // elementos `fixed` hijos; sin portal el recortador quedaba encerrado en la tarjeta.
+        <Portal>
+          <ImageAdjustDialog
+            mode="banner"
+            source={bannerAdjustSource}
+            onClose={() => setBannerAdjustSource(null)}
+            onConfirm={async (dataUrl) => {
+              try {
+                await saveBannerImage(dataUrl);
+                setBannerAdjustSource(null);
+              } catch (error) {
+                throw new Error(
+                  error instanceof Error
+                    ? error.message
+                    : "No se pudo actualizar el banner.",
+                );
+              }
+            }}
+          />
+        </Portal>
       )}
     </section>
   );
@@ -1813,5 +1817,6 @@ function formatDate(value?: string | null) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }

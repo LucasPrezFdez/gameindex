@@ -3,6 +3,8 @@ import { parseBody, v } from "@/lib/validation";
 import { requireAdminFromRequest } from "@/services/community";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction } from "@/services/admin-audit";
+import { isEmailAdmin } from "@/services/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
               p.username,
               p.display_name,
               p.created_at,
-              p.updated_at,
+              p.updated_at
        from profiles p
        left join app_users u on u.id = p.id
        where p.id = $1
@@ -165,23 +167,55 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   try {
     const sql = createSqlClient();
     const existing = (await sql.query(
-      "select id, username from app_users where id = $1 limit 1",
+      "select id, username, email, is_admin from app_users where id = $1 limit 1",
       [id],
-    )) as Array<{ id: string; username: string }>;
+    )) as Array<{ id: string; username: string; email: string; is_admin: boolean | null }>;
     if (!existing.length) return jsonError("Usuario no encontrado.", 404);
+    const target = existing[0];
+    const adminRef = { id: admin.id, username: admin.user_metadata?.username };
 
     if (body.value.action === "ban") {
-      return jsonError(
-        "La base actual no expone campos de suspensión para usuarios.",
-        400,
+      if (isEmailAdmin(target.email) || target.is_admin) {
+        return jsonError("No se puede suspender a otro administrador.", 400);
+      }
+      const reason = body.value.reason?.trim() || null;
+      const until = body.value.durationHours
+        ? new Date(Date.now() + body.value.durationHours * 60 * 60 * 1000).toISOString()
+        : null;
+      await sql.query(
+        `update app_users
+           set banned_at = now(), banned_until = $2, banned_reason = $3, banned_by = $4, updated_at = now()
+         where id = $1`,
+        [id, until, reason, admin.id],
       );
+      await logAdminAction({
+        admin: adminRef,
+        action: "user.ban",
+        targetType: "user",
+        targetId: id,
+        targetLabel: target.username,
+        metadata: { until, reason, durationHours: body.value.durationHours ?? null },
+        request,
+      });
+      return jsonOk({ banned: { until, reason } });
     }
 
     if (body.value.action === "unban") {
-      return jsonError(
-        "La base actual no expone campos de suspensión para usuarios.",
-        400,
+      await sql.query(
+        `update app_users
+           set banned_at = null, banned_until = null, banned_reason = null, banned_by = null, updated_at = now()
+         where id = $1`,
+        [id],
       );
+      await logAdminAction({
+        admin: adminRef,
+        action: "user.unban",
+        targetType: "user",
+        targetId: id,
+        targetLabel: target.username,
+        request,
+      });
+      return jsonOk({ banned: null });
     }
 
     return jsonError("Acción no soportada.", 400);

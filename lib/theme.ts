@@ -104,9 +104,9 @@ export const arcadeTheme = {
   border: "rgba(255,255,255,0.10)",
   accent: "#3B82F6",
   accent2: "#A3E635",
-  fontDisplay: '"Space Grotesk", ui-sans-serif, system-ui',
-  fontBody: '"Inter", ui-sans-serif, system-ui',
-  fontMono: '"JetBrains Mono", ui-monospace, monospace',
+  fontDisplay: 'var(--font-display), "Space Grotesk", ui-sans-serif, system-ui',
+  fontBody: 'var(--font-sans), "Inter", ui-sans-serif, system-ui',
+  fontMono: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
   headerBg: "transparent",
   headerBgCondensed: "rgba(8,10,18,0.85)",
   logoGradient: "linear-gradient(135deg, #3B82F6 0%, #8B5CF6 50%, #A3E635 100%)",
@@ -194,12 +194,13 @@ export const arcadeTheme = {
     { x: 25, y: 75, range: 16, speed: 0.16, color: "rgba(59,130,246,0.35)", size: 55 }
   ],
   deco: [
-    { shape: "circle", x: "8%", y: "12%", size: 14, color: "#A3E635", blur: 0, opacity: 1, parallax: 0.4 },
+    // Posiciones elegidas para no caer sobre el texto, el buscador ni los chips del hero.
+    { shape: "circle", x: "3%", y: "6%", size: 14, color: "#A3E635", blur: 0, opacity: 1, parallax: 0.4 },
     { shape: "ring", x: "85%", y: "18%", size: 60, color: "#3B82F6", thickness: 3, opacity: 0.6, parallax: 0.25 },
-    { shape: "star", x: "12%", y: "78%", size: 32, color: "#A3E635", blur: 8, opacity: 0.9, parallax: 0.3 },
+    { shape: "star", x: "55%", y: "86%", size: 32, color: "#A3E635", blur: 8, opacity: 0.9, parallax: 0.3 },
     { shape: "cross", x: "92%", y: "70%", size: 36, color: "#8B5CF6", opacity: 0.6, parallax: 0.2 },
     { shape: "circle", x: "78%", y: "85%", size: 22, color: "#3B82F6", blur: 4, opacity: 0.8, parallax: 0.5 },
-    { shape: "ring", x: "30%", y: "8%", size: 28, color: "#A3E635", thickness: 2, opacity: 0.5, parallax: 0.35 },
+    { shape: "ring", x: "50%", y: "7%", size: 28, color: "#A3E635", thickness: 2, opacity: 0.5, parallax: 0.35 },
     { shape: "pill", x: "50%", y: "92%", size: 80, color: "#8B5CF6", blur: 10, opacity: 0.4, rotate: -20, parallax: 0.15 }
   ]
 } satisfies HomeTheme;

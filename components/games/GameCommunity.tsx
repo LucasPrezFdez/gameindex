@@ -99,12 +99,14 @@ export function GameCommunity({ game }: { game: Game }) {
     };
   }, [fetchCommunity]);
 
-  const averageScore = payload?.averageScore ?? game.userScore;
-  const ratingCount = payload?.ratingCount ?? game.ratings;
+  // Si la comunidad aún no tiene valoraciones propias, mostramos la nota agregada del catálogo.
+  const hasCommunityRatings = Boolean(payload?.ratingCount);
+  const averageScore = hasCommunityRatings ? payload!.averageScore : game.userScore;
+  const ratingCount = hasCommunityRatings ? payload!.ratingCount : game.ratings;
   const comments = payload?.comments ?? [];
 
   return (
-    <section id="community-rating" className="container-page py-8">
+    <section id="community-rating" className="container-page scroll-mt-36 py-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-electric">

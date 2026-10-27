@@ -45,7 +45,8 @@ export function ChatWidget() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as ChatMessage[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        setMessages([WELCOME, ...parsed.filter((m) => m.id !== "welcome")]);
+        // Se descartan respuestas vacías que quedaron a medias (p. ej. recarga durante el streaming).
+        setMessages([WELCOME, ...parsed.filter((m) => m.id !== "welcome" && !(m.role === "assistant" && !m.content))]);
       }
     } catch {
       // ignore corrupted storage
@@ -55,7 +56,9 @@ export function ChatWidget() {
   // Persist conversation (excluding the welcome message)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const toStore = messages.filter((m) => m.id !== "welcome").slice(-MAX_PERSISTED_MESSAGES);
+    const toStore = messages
+      .filter((m) => m.id !== "welcome" && !(m.role === "assistant" && !m.content))
+      .slice(-MAX_PERSISTED_MESSAGES);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
     } catch {
@@ -202,7 +205,11 @@ export function ChatWidget() {
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
-          // user cancelled — keep partial content but no error banner
+          // Cancelado por el usuario: se conserva el texto parcial, pero si aún no había
+          // llegado nada se quita la burbuja vacía (si no, se quedaba "Generando" para siempre).
+          setMessages((current) =>
+            current.filter((m) => !(m.id === assistantId && m.content === ""))
+          );
         } else {
           const message = err instanceof Error ? err.message : "Error inesperado.";
           setError(message);
@@ -255,7 +262,7 @@ export function ChatWidget() {
         aria-hidden={!open}
         inert={!open || undefined}
         className={cn(
-          "flex h-[34rem] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface/95 shadow-card backdrop-blur-xl",
+          "flex h-[34rem] max-h-[calc(100dvh-6.5rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface/95 shadow-card backdrop-blur-xl",
           "origin-bottom-right transform-gpu transition-all duration-200 ease-out",
           open
             ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
@@ -268,7 +275,7 @@ export function ChatWidget() {
                 IA
               </span>
               <div>
-                <p className="text-sm font-semibold text-foreground">GameIndex Assistant</p>
+                <p className="text-sm font-semibold text-foreground">Asistente de GameIndex</p>
                 <p className="text-xs text-muted">Preguntas sobre videojuegos</p>
               </div>
             </div>
@@ -359,7 +366,7 @@ export function ChatWidget() {
               </button>
             </div>
             <p className="mt-2 text-xs text-muted">
-              Powered by Groq. Pueden producirse imprecisiones.
+              Respuestas generadas con IA (Groq). Pueden contener imprecisiones.
             </p>
           </form>
         </div>
@@ -465,7 +472,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <button
                 type="button"
                 onClick={copy}
-                className="rounded-md px-1.5 py-0.5 text-xs text-muted opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-foreground"
+                className="rounded-md px-1.5 py-0.5 text-xs text-muted opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100 hover:bg-white/10 hover:text-foreground [@media(hover:none)]:opacity-100"
                 aria-label="Copiar respuesta"
               >
                 {copied ? "Copiado" : "Copiar"}

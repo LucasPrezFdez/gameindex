@@ -6,6 +6,7 @@ import { RankingPageHeader } from "@/components/rankings/RankingPageHeader";
 import { getExploreGames } from "@/services/games";
 import type { Game } from "@/data/games";
 import { formatCompactNumber } from "@/lib/utils";
+import { genreLabelList } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -242,7 +243,7 @@ function UpcomingCard({ game }: { game: Game }) {
           {game.platforms.slice(0, 3).join(", ") || "Plataformas por confirmar"}
         </p>
         <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
-          {game.genres.slice(0, 2).map((genre) => (
+          {genreLabelList(game.genres).slice(0, 2).map((genre) => (
             <span
               key={genre}
               className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted"

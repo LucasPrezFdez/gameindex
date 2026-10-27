@@ -148,6 +148,12 @@ export async function fanoutWishlistReleases(): Promise<{ created: number }> {
        join games g on g.id = ugs.game_id
       where ugs.status = 'want_to_play'
         and g.status = 'released'
+        -- Solo juegos que han salido después de añadirlos a pendientes: sin esto, apuntar
+        -- un clásico de 2015 generaba un aviso de "ya disponible".
+        and coalesce(
+              (select min(rd.release_date) from release_dates rd where rd.game_id = g.id),
+              make_date(g.release_year, 12, 31)
+            ) >= (ugs.created_at at time zone 'UTC')::date
         and not exists (
           select 1 from notifications n
            where n.recipient_id = ugs.user_id

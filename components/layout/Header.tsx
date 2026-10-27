@@ -40,6 +40,19 @@ export function Header() {
   const isAdminActive = pathname === "/admin" || pathname.startsWith("/admin/");
 
   useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -102,7 +115,7 @@ export function Header() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 motion-safe:transition-all motion-safe:duration-300",
         scrolled
-          ? "border-b border-white/[0.08] bg-background/96 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5),0_1px_0_rgba(59,130,246,0.07)]"
+          ? "border-b border-white/[0.08] bg-background/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5),0_1px_0_rgba(59,130,246,0.07)]"
           : "border-b border-white/[0.04] bg-background/75 backdrop-blur-xl",
       )}
     >
@@ -167,11 +180,17 @@ export function Header() {
           <GameSearchBar compact />
         </div>
 
+        {/* Campana: una sola instancia visible en todos los tamaños (en móvil, junto al menú) */}
+        {session && (
+          <div className="ml-auto flex items-center md:ml-0">
+            <NotificationsBell session={session} />
+          </div>
+        )}
+
         {/* Auth area */}
         <div className="hidden items-center gap-1.5 md:flex">
           {session ? (
             <>
-              <NotificationsBell session={session} />
               {isAdmin && (
                 <Link
                   href="/admin"
@@ -182,7 +201,7 @@ export function Header() {
                       : "text-[#A3E635] hover:bg-[#A3E635]/10",
                   )}
                 >
-                  Admin
+                  Panel
                   <span className="rounded bg-[#A3E635] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-background">
                     Admin
                   </span>
@@ -223,7 +242,8 @@ export function Header() {
         {/* Hamburger */}
         <button
           className={cn(
-            "ml-auto flex h-9 w-9 flex-col items-center justify-center gap-[5px] rounded-lg border motion-safe:transition-all motion-safe:duration-200 md:hidden",
+            "flex h-9 w-9 flex-col items-center justify-center gap-[5px] rounded-lg border motion-safe:transition-all motion-safe:duration-200 md:hidden",
+            !session && "ml-auto",
             open
               ? "border-white/[0.15] bg-white/[0.08]"
               : "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06]",
@@ -257,9 +277,12 @@ export function Header() {
       {/* Mobile menu */}
       <div
         id="mobile-nav"
+        inert={!open}
         className={cn(
-          "overflow-hidden md:hidden motion-safe:transition-[max-height,opacity] motion-safe:duration-300 motion-safe:ease-in-out",
-          open ? "max-h-[540px] opacity-100" : "max-h-0 opacity-0",
+          "md:hidden motion-safe:transition-[max-height,opacity] motion-safe:duration-300 motion-safe:ease-in-out",
+          open
+            ? "max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain opacity-100"
+            : "max-h-0 overflow-hidden opacity-0",
         )}
       >
         <div className="container-page grid gap-3 pb-5 pt-2">
@@ -300,7 +323,7 @@ export function Header() {
                     )}
                     onClick={() => setOpen(false)}
                   >
-                    Admin
+                    Panel de administración
                     <span className="rounded bg-[#A3E635] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-background">
                       Admin
                     </span>

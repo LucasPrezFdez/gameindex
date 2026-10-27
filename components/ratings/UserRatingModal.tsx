@@ -38,6 +38,28 @@ export function UserRatingModal({ game }: { game: Game }) {
 
 function RatingDialog({ game, onClose }: { game: Game; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
+  const { accessToken } = useAuthSession();
+  // La valoración previa del usuario se carga antes de mostrar el formulario: sin esto se
+  // abría siempre con 8 y comentario vacío, y guardar machacaba la nota existente.
+  const [existing, setExisting] = useState<{ score?: number; comment?: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/games/${encodeURIComponent(game.slug)}/community`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      cache: "no-store"
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null)
+      .then((payload) => {
+        if (cancelled) return;
+        const rating = payload?.userRating;
+        setExisting(rating ? { score: Number(rating.score), comment: String(rating.comment ?? "") } : {});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, game.slug]);
 
   useEffect(() => {
     setMounted(true);
@@ -126,7 +148,20 @@ function RatingDialog({ game, onClose }: { game: Game; onClose: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-5 md:px-8">
-          <CommunityRatingForm game={game} compact onSaved={onClose} />
+          {existing ? (
+            <CommunityRatingForm
+              game={game}
+              compact
+              initialScore={existing.score}
+              initialComment={existing.comment}
+              onSaved={onClose}
+            />
+          ) : (
+            <div className="space-y-4" aria-busy="true" aria-label="Cargando tu valoración">
+              <div className="h-16 animate-pulse rounded-2xl bg-white/[0.05]" />
+              <div className="h-28 animate-pulse rounded-2xl bg-white/[0.05]" />
+            </div>
+          )}
         </div>
       </div>
     </div>,

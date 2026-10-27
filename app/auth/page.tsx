@@ -1,197 +1,66 @@
-﻿"use client";
+﻿import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AuthForm } from "@/components/auth/AuthForm";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserAuthClient } from "@/services/auth-browser";
-import { Card, CardContent, CardHeader } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+export const metadata: Metadata = {
+  title: "Entrar o crear cuenta",
+  description: "Accede a GameIndex para valorar juegos, escribir reseñas, crear listas y organizar tu biblioteca.",
+  robots: { index: false, follow: true }
+};
 
-type AuthMode = "signin" | "signup";
+const benefits = [
+  {
+    title: "Tu biblioteca, ordenada",
+    body: "Marca lo que juegas, lo que has terminado y lo que tienes pendiente.",
+    icon: (
+      <path d="M4 19.5V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14.5M4 19.5A1.5 1.5 0 0 0 5.5 21H20M4 19.5A1.5 1.5 0 0 1 5.5 18H20" />
+    )
+  },
+  {
+    title: "Valora y reseña",
+    body: "Puntúa del 1 al 10 y comparte reseñas con la comunidad.",
+    icon: <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
+  },
+  {
+    title: "Listas y recomendaciones",
+    body: "Crea listas, sigue a otros jugadores y recibe sugerencias según tus gustos.",
+    icon: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+  }
+];
 
 export default function AuthPage() {
-  const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("signin");
-  const [redirectTo, setRedirectTo] = useState("/games");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const nextMode = params.get("mode");
-    const nextRedirect = params.get("redirect");
-
-    if (nextMode === "signup") {
-      setMode("signup");
-    }
-
-    if (nextRedirect?.startsWith("/")) {
-      setRedirectTo(nextRedirect);
-    }
-  }, []);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const authClient = createBrowserAuthClient();
-
-      if (mode === "signup") {
-        const cleanUsername = getSafeUsername(username || email.split("@")[0]);
-        const { data, error: signUpError } = await authClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              username: cleanUsername,
-              display_name: cleanUsername
-            }
-          }
-        });
-
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        if (data.user && data.session) {
-          await fetch("/api/me/profile", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${data.session.access_token}`
-            }
-          });
-          router.push(redirectTo === "/games" ? "/onboarding" : redirectTo);
-          router.refresh();
-          return;
-        }
-
-        setMessage("Cuenta creada. Revisa tu email para confirmar el registro antes de iniciar sesión.");
-        setMode("signin");
-      } else {
-        const { error: signInError } = await authClient.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (signInError) {
-          throw signInError;
-        }
-
-        router.push(redirectTo);
-        router.refresh();
-      }
-    } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "No se pudo completar la autenticación.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <section className="container-page grid min-h-[70vh] place-items-center py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-electric">
-            GameIndex
-          </p>
-          <h1 className="text-3xl font-black">
-            {mode === "signin" ? "Entrar" : "Crear cuenta"}
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            {mode === "signin"
-              ? "Inicia sesión para valorar juegos y publicar comentarios."
-              : "Crea una cuenta para guardar tus puntuaciones."}
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="mb-2 block text-sm font-medium" htmlFor="username">
-                  Nombre de usuario
-                </label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="norapixel"
-                  minLength={3}
-                />
-              </div>
-            )}
+    <section className="container-page grid min-h-[calc(100vh-12rem)] items-center gap-10 py-10 lg:grid-cols-[1fr_440px] lg:gap-16">
+      <div className="order-2 hidden lg:order-1 lg:block">
+        <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-electric">GameIndex</p>
+        <h2 className="max-w-xl text-5xl font-black leading-[1.05] text-balance">
+          Decide qué jugar después, <span className="text-electric">con criterio</span>.
+        </h2>
+        <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted">
+          Fichas completas, rankings de la comunidad y tu propio backlog en un mismo sitio.
+        </p>
+        <ul className="mt-10 grid max-w-lg gap-5">
+          {benefits.map((benefit) => (
+            <li key={benefit.title} className="flex gap-4">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-electric/30 bg-electric/10 text-blue-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  {benefit.icon}
+                </svg>
+              </span>
+              <span>
+                <span className="block font-semibold">{benefit.title}</span>
+                <span className="mt-0.5 block text-sm text-muted">{benefit.body}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium" htmlFor="email">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="tu@email.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium" htmlFor="password">
-                Contraseña
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={6}
-                required
-              />
-            </div>
-
-            {error && <p className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{error}</p>}
-            {message && <p className="rounded-xl bg-lime/10 p-3 text-sm text-lime">{message}</p>}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Procesando..." : mode === "signin" ? "Entrar" : "Crear cuenta"}
-            </Button>
-          </form>
-
-          <button
-            type="button"
-            className="mt-5 w-full text-center text-sm font-semibold text-electric hover:text-blue-300"
-            onClick={() => {
-              setMode((value) => (value === "signin" ? "signup" : "signin"));
-              setError(null);
-              setMessage(null);
-            }}
-          >
-            {mode === "signin" ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Entra"}
-          </button>
-        </CardContent>
-      </Card>
+      <div className="order-1 mx-auto w-full max-w-md lg:order-2 lg:max-w-none">
+        <Suspense fallback={<div className="surface-card h-[520px] w-full animate-pulse rounded-3xl" />}>
+          <AuthForm />
+        </Suspense>
+      </div>
     </section>
   );
 }
-
-function getSafeUsername(value: string) {
-  const normalized = value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9_]+/g, "-")
-    .replace(/(^-|-$)+/g, "")
-    .slice(0, 32);
-
-  return normalized || "usuario";
-}
-
-
-
-

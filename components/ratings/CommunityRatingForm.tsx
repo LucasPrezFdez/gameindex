@@ -330,7 +330,19 @@ export function CommunityRatingForm({
         )}
         <div className="flex items-center gap-2">
           {compact && onSaved && (
-            <Button type="button" variant="ghost" onClick={onSaved} disabled={submitting}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                // Descarta los cambios sin guardar antes de cerrar / recargar.
+                setScore(initialScore ?? 8);
+                setComment(initialComment ?? "");
+                setError(null);
+                setSuccess(null);
+                onSaved();
+              }}
+              disabled={submitting}
+            >
               Cancelar
             </Button>
           )}

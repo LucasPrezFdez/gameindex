@@ -105,6 +105,17 @@ export function MediaGallery({
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
+        ) : active && active.id === "hero" ? (
+          // Sin capturas ni vídeos: la portada vertical se muestra entera sobre un fondo
+          // desenfocado en vez de recortarla (y pixelarla) a 16:9.
+          <div className="relative aspect-video w-full overflow-hidden">
+            <Image src={active.thumbnail} alt="" fill sizes="40vw" className="scale-110 object-cover opacity-40 blur-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute inset-y-[8%] left-1/2 aspect-[3/4] -translate-x-1/2 overflow-hidden rounded-xl border border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+              <Image src={active.thumbnail} alt={active.label} fill priority sizes="260px" className="object-cover" />
+            </div>
+            <p className="absolute bottom-3 left-4 text-xs text-white/60">Sin capturas ni tráilers disponibles todavía</p>
+          </div>
         ) : active ? (
           <div className="relative aspect-video w-full">
             <Image

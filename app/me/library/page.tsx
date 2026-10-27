@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/feedback/Toast";
 
 type LibraryItem = { status: UserGameStatus; createdAt: string; game: Game | null };
 
@@ -136,7 +137,12 @@ export default function LibraryPage() {
       setFeaturedSlug(payload?.featuredGameSlug ?? null);
       setPickerOpen(false);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el juego favorito.");
+      // Error local del selector: no debe ocultar toda la biblioteca como hacía setError().
+      toast({
+        tone: "error",
+        title: "No se pudo guardar el juego favorito",
+        description: saveError instanceof Error ? saveError.message : undefined
+      });
     } finally {
       setSavingFeatured(false);
     }
@@ -586,7 +592,7 @@ function FeaturedGameCard({
   if (!heroGame) {
     if (favoriteCount === 0) {
       return (
-        <div className="hidden shrink-0 max-w-[280px] flex-col gap-2 rounded-2xl border border-pink-400/20 bg-pink-500/[0.06] px-4 py-3 backdrop-blur-xl lg:flex">
+        <div className="flex shrink-0 max-w-[280px] flex-col gap-2 rounded-2xl border border-pink-400/20 bg-pink-500/[0.06] px-4 py-3 backdrop-blur-xl">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-pink-200/80">Juego favorito</p>
           <p className="text-xs leading-relaxed text-white/65">
             Marca un juego como favorito desde su ficha y podrás destacarlo aquí.
@@ -601,7 +607,7 @@ function FeaturedGameCard({
     <button
       type="button"
       onClick={onPick}
-      className="group hidden shrink-0 items-center gap-3 rounded-2xl border border-pink-400/25 bg-black/35 px-4 py-3 text-left backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-pink-400/50 hover:bg-black/50 hover:shadow-[0_12px_32px_rgba(244,114,182,0.2)] focus-visible:border-pink-400/60 lg:flex"
+      className="group flex w-full shrink-0 items-center gap-3 rounded-2xl border border-pink-400/25 bg-black/35 px-4 py-3 text-left backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-pink-400/50 hover:bg-black/50 hover:shadow-[0_12px_32px_rgba(244,114,182,0.2)] focus-visible:border-pink-400/60 sm:w-auto"
     >
       {heroGame.coverUrl ? (
         <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/15 transition group-hover:ring-pink-400/40">

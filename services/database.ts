@@ -900,14 +900,22 @@ async function hydrateActivityLists(
 ) {
   const ids = unique(rows.map((row) => row.list_id).filter(Boolean));
   if (!ids.length) return;
+  // Solo listas públicas y no ocultadas: la actividad es pública y no debe revelar
+  // títulos de listas privadas. Los eventos de listas no visibles se eliminan del feed.
   const lists = (await queryFn.query(
-    `select id, slug, title from lists where id = any($1::uuid[])`,
+    `select id, slug, title from lists
+      where id = any($1::uuid[]) and is_public = true and hidden_at is null`,
     [ids],
   )) as any[];
   const byId = new Map(lists.map((list) => [list.id, list]));
-  rows.forEach((row) => {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row.list_id && !byId.has(row.list_id)) {
+      rows.splice(index, 1);
+      continue;
+    }
     row.lists = byId.get(row.list_id) ?? null;
-  });
+  }
 }
 
 function stripJsonNulls(rows: any[]) {

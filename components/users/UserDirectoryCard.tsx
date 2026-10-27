@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { DirectoryUserCard } from "@/services/users";
 import { formatCompactNumber } from "@/lib/utils";
+import { genreLabelList, platformLabelList } from "@/lib/labels";
 
 export function UserDirectoryCard({ user }: { user: DirectoryUserCard }) {
   const { profile, stats } = user;
@@ -48,7 +49,7 @@ export function UserDirectoryCard({ user }: { user: DirectoryUserCard }) {
 
       {(platforms.length > 0 || genres.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
-          {platforms.map((platform) => (
+          {platformLabelList(platforms).map((platform) => (
             <span
               key={`p-${platform}`}
               className="rounded-full border border-electric/30 bg-electric/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-100"
@@ -56,7 +57,7 @@ export function UserDirectoryCard({ user }: { user: DirectoryUserCard }) {
               {platform}
             </span>
           ))}
-          {genres.map((genre) => (
+          {genreLabelList(genres).map((genre) => (
             <span
               key={`g-${genre}`}
               className="rounded-full border border-lime/30 bg-lime/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-lime"

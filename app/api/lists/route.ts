@@ -14,6 +14,7 @@ const log = createLogger("api/lists");
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get("username") ?? undefined;
+  if (!process.env.DATABASE_URL) return jsonOk({ lists: [] });
   const serviceClient = createServiceDatabaseClient();
 
   let query = serviceClient

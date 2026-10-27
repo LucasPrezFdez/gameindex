@@ -1,6 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import type { Game } from "@/data/games";
-import { createServiceDatabaseClient } from "@/services/database";
+import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
 import { ensureProfile, getOptionalUserIdFromRequest, getUserFromRequest } from "@/services/community";
 import {
   getListCollaborators,
@@ -86,8 +86,25 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   }
 
   if (wantsGamesUpdate) {
-    await serviceClient.from("list_items").delete().eq("list_id", list.id);
-    await upsertListItems(serviceClient, list.id, payload.games as Partial<Game>[]);
+    const requested = payload.games as Partial<Game>[];
+    // Primero se insertan/actualizan los juegos nuevos y solo después se quitan los que
+    // sobran: si algo falla a mitad, la lista no se queda vacía.
+    let keptGameIds: string[];
+    try {
+      keptGameIds = await upsertListItems(serviceClient, list.id, requested);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "No se pudieron guardar los juegos de la lista." },
+        { status: 500 }
+      );
+    }
+    if (requested.length > 0 && keptGameIds.length === 0) {
+      return NextResponse.json({ error: "Ninguno de los juegos enviados existe en el catálogo." }, { status: 400 });
+    }
+    await createSqlClient().query(
+      "delete from list_items where list_id = $1 and not (game_id = any($2::uuid[]))",
+      [list.id, keptGameIds]
+    );
   }
 
   const { data: updated, error: updatedError } = await serviceClient

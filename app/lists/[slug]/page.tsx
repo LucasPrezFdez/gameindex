@@ -190,6 +190,7 @@ async function getPublicDatabaseList(slug: string) {
       .select(LIST_WITH_ITEMS_SELECT)
       .eq("slug", slug)
       .eq("is_public", true)
+      .is("hidden_at", null)
       .maybeSingle();
 
     if (error || !data) return null;

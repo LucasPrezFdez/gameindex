@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { StatCard } from "@/components/admin/StatCard";
+import { UserAdminActions } from "@/components/admin/users/UserAdminActions";
 import { createSqlClient } from "@/services/database";
 import { isEmailAdmin } from "@/services/auth";
 
@@ -28,6 +29,10 @@ export default async function AdminUserDetailPage({
             p.display_name,
             p.created_at,
             p.updated_at,
+            u.is_admin,
+            u.banned_at,
+            u.banned_until,
+            u.banned_reason
      from profiles p
      left join app_users u on u.id = p.id
      where p.id = $1
@@ -40,12 +45,19 @@ export default async function AdminUserDetailPage({
     display_name: string | null;
     created_at: string;
     updated_at: string;
+    is_admin: boolean | null;
+    banned_at: string | null;
+    banned_until: string | null;
+    banned_reason: string | null;
   }>;
 
   if (!userRows.length) notFound();
   const user = userRows[0];
   const hasAccount = !user.email.endsWith("@mock.gameindex.local");
-  const isAdmin = isEmailAdmin(user.email);
+  const isAdmin = isEmailAdmin(user.email) || Boolean(user.is_admin);
+  const isBanned = Boolean(
+    user.banned_at && (!user.banned_until || new Date(user.banned_until) > new Date()),
+  );
 
   const [
     reviewsCount,
@@ -107,13 +119,34 @@ export default async function AdminUserDetailPage({
           { label: "Usuarios", href: "/admin/users" },
           { label: `@${user.username}` },
         ]}
-        actions={null}
+        actions={
+          hasAccount ? (
+            <UserAdminActions
+              userId={user.id}
+              username={user.username}
+              isAdmin={isAdmin}
+              isBanned={isBanned}
+              publicProfileHref={`/users/${user.username}`}
+            />
+          ) : null
+        }
       />
 
       <section className="mb-6 flex flex-wrap items-center gap-2">
         {isAdmin && (
           <span className="rounded-md bg-[#A3E635]/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-[#A3E635]">
             Admin
+          </span>
+        )}
+        {isBanned && (
+          <span
+            className="rounded-md bg-danger/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300"
+            title={user.banned_reason ?? undefined}
+          >
+            Suspendido
+            {user.banned_until
+              ? ` hasta ${new Date(user.banned_until).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}`
+              : " permanentemente"}
           </span>
         )}
         <span className="rounded-md bg-white/[0.04] px-2 py-1 text-[11px] font-mono text-muted">

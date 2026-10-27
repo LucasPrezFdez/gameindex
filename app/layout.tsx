@@ -1,10 +1,15 @@
 ﻿import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/feedback/Toast";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { getSiteUrl } from "@/lib/site";
+
+const fontSans = Inter({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
+const fontDisplay = Space_Grotesk({ subsets: ["latin"], display: "swap", variable: "--font-display" });
+const fontMono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -54,7 +59,7 @@ export default function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es" className={`dark ${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}>
       <body
         className="bg-background bg-premium-radial font-sans antialiased"
         suppressHydrationWarning

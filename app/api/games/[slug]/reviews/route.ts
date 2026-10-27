@@ -11,6 +11,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, Math.floor(Number(searchParams.get("page")) || 1));
   const pageSize = Math.max(1, Math.min(50, Math.floor(Number(searchParams.get("pageSize")) || 20)));
+  if (!process.env.DATABASE_URL) return NextResponse.json({ reviews: [], count: 0, page, pageSize });
   const serviceClient = createServiceDatabaseClient();
   const from = (page - 1) * pageSize;
 

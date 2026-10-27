@@ -32,19 +32,23 @@ export function NotificationsBell({ session }: { session: AuthSession }) {
 
   const token = session.access_token;
 
-  const fetchNotifications = useCallback(async () => {
-    if (!token) return;
+  // Devuelve el recuento de no leídas recién obtenido (o null si falla) para no depender
+  // del valor de `unread` capturado en el closure.
+  const fetchNotifications = useCallback(async (): Promise<number | null> => {
+    if (!token) return null;
     try {
       const response = await fetch("/api/me/notifications", {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store"
       });
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const data = (await response.json()) as NotificationsResponse;
+      const unreadCount = Number(data.unreadCount ?? 0);
       setItems(Array.isArray(data.notifications) ? data.notifications : []);
-      setUnread(Number(data.unreadCount ?? 0));
+      setUnread(unreadCount);
+      return unreadCount;
     } catch {
-      // ignore
+      return null;
     }
   }, [token]);
 
@@ -65,8 +69,15 @@ export function NotificationsBell({ session }: { session: AuthSession }) {
     function onClickOutside(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   async function handleToggle() {
@@ -74,14 +85,15 @@ export function NotificationsBell({ session }: { session: AuthSession }) {
     setOpen(next);
     if (next) {
       setLoading(true);
-      await fetchNotifications();
+      const freshUnread = await fetchNotifications();
       setLoading(false);
-      if (unread > 0) {
+      if ((freshUnread ?? unread) > 0) {
         try {
-          await fetch("/api/me/notifications", {
+          const response = await fetch("/api/me/notifications", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (!response.ok) return;
           setUnread(0);
           setItems((prev) =>
             prev.map((item) => (item.readAt ? item : { ...item, readAt: new Date().toISOString() }))
@@ -120,8 +132,9 @@ export function NotificationsBell({ session }: { session: AuthSession }) {
 
       {open && (
         <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/[0.08] bg-background/98 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
+          role="region"
+          aria-label="Notificaciones"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/[0.08] bg-background/[0.98] shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
         >
           <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-3">
             <span className="text-sm font-semibold">Notificaciones</span>

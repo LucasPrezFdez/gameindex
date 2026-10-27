@@ -9,6 +9,16 @@ export function formatCompactNumber(value: number) {
   }).format(value);
 }
 
+/** "2015-05-19" → "19 de mayo de 2015". Devuelve el texto original si no es una fecha ISO. */
+export function formatReleaseDate(value?: string | null) {
+  if (!value) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (!match) return value;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
 export function slugify(value: string) {
   return value
     .toLowerCase()
@@ -28,6 +38,15 @@ export function prioritizePlatform(platforms: string[], highlight?: string | nul
   const [match] = reordered.splice(matchIndex, 1);
   reordered.unshift(match);
   return reordered;
+}
+
+/** Solo borde + color de texto: para badges que van sobre imágenes con fondo propio. */
+export function scoreAccent(score?: number | null) {
+  if (!score) return "border-white/15 text-muted";
+  if (score >= 9) return "border-lime/50 text-lime";
+  if (score >= 8) return "border-electric/50 text-blue-300";
+  if (score >= 7) return "border-violet/50 text-violet-300";
+  return "border-danger/50 text-rose-300";
 }
 
 export function scoreTone(score?: number | null) {

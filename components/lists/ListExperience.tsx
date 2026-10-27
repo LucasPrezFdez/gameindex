@@ -12,6 +12,7 @@ import { ReportButton } from "@/components/feedback/ReportButton";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 import { cn } from "@/lib/utils";
+import { genreLabelList } from "@/lib/labels";
 
 type Permissions = {
   isOwner: boolean;
@@ -49,7 +50,7 @@ export function ListExperience({ slug, initialList = null }: Props) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(!initialList);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: "success" | "error" } | null>(null);
   const [view, setView] = useState<"list" | "grid">("list");
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("all");
@@ -145,9 +146,9 @@ export function ListExperience({ slug, initialList = null }: Props) {
       } else {
         setList({ ...list, likesCount: list.likesCount + 1 });
       }
-      setMessage("¡Gracias por tu me gusta!");
+      setMessage({ text: "¡Gracias por tu me gusta!", tone: "success" });
     } catch (likeError) {
-      setMessage(likeError instanceof Error ? likeError.message : "No se pudo registrar el me gusta.");
+      setMessage({ text: likeError instanceof Error ? likeError.message : "No se pudo registrar el me gusta.", tone: "error" });
     }
   }
 
@@ -161,9 +162,9 @@ export function ListExperience({ slug, initialList = null }: Props) {
         return;
       }
       await navigator.clipboard.writeText(url);
-      setMessage("Enlace copiado al portapapeles.");
+      setMessage({ text: "Enlace copiado al portapapeles.", tone: "success" });
     } catch {
-      setMessage("No se pudo compartir la lista.");
+      setMessage({ text: "No se pudo compartir la lista.", tone: "error" });
     }
   }
 
@@ -181,12 +182,14 @@ export function ListExperience({ slug, initialList = null }: Props) {
 
   async function removeGame(gameSlug: string) {
     if (!list) return;
+    const target = list.items.find((item) => item.game.slug === gameSlug);
+    if (!window.confirm(`¿Quitar «${target?.game.title ?? "este juego"}» de la lista?`)) return;
     setMessage(null);
     try {
       await saveList({ ...list, items: list.items.filter((item) => item.game.slug !== gameSlug) });
-      setMessage("Juego eliminado de la lista.");
+      setMessage({ text: "Juego eliminado de la lista.", tone: "success" });
     } catch (removeError) {
-      setMessage(removeError instanceof Error ? removeError.message : "No se pudo eliminar el juego.");
+      setMessage({ text: removeError instanceof Error ? removeError.message : "No se pudo eliminar el juego.", tone: "error" });
     }
   }
 
@@ -336,10 +339,17 @@ export function ListExperience({ slug, initialList = null }: Props) {
         </div>
       </div>
 
-      {message && <p className="mb-5 rounded-xl border border-lime/30 bg-lime/10 p-3 text-sm text-lime">{message}</p>}
+      {message && (
+        <p
+          role={message.tone === "error" ? "alert" : "status"}
+          className={message.tone === "error" ? "mb-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-rose-200" : "mb-5 rounded-xl border border-lime/30 bg-lime/10 p-3 text-sm text-lime"}
+        >
+          {message.text}
+        </p>
+      )}
       {error && <p className="mb-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
 
-      <div className="sticky top-2 z-20 mb-6 grid items-center gap-3 rounded-2xl border border-white/10 bg-surface/95 p-4 shadow-card backdrop-blur md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_160px_190px_150px_auto]">
+      <div className="sticky top-[76px] z-20 lg:top-[84px] mb-6 grid items-center gap-3 rounded-2xl border border-white/10 bg-surface/95 p-4 shadow-card backdrop-blur md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_160px_190px_150px_auto]">
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en la lista..." />
         <Select value={genre} onChange={setGenre} options={["all", ...genres]} labels={{ all: "Todos los géneros" }} />
         <Select value={platform} onChange={setPlatform} options={["all", ...platforms]} labels={{ all: "Todas las plataformas" }} />
@@ -398,10 +408,7 @@ export function ListExperience({ slug, initialList = null }: Props) {
           accessToken={accessToken}
           list={list}
           onClose={() => setAddOpen(false)}
-          onSaved={(nextList) => {
-            setList(nextList);
-            setAddOpen(false);
-          }}
+          onSaved={(nextList) => setList(nextList)}
         />
       )}
     </section>
@@ -439,7 +446,7 @@ function ListRows({ games, canEdit, onRemove }: { games: Game[]; canEdit: boolea
             <p className="mt-0.5 truncate text-xs text-muted">
               {game.developer}
               {game.platforms.length ? ` · ${game.platforms.slice(0, 3).join(", ")}` : ""}
-              {game.genres.length ? ` · ${game.genres.slice(0, 2).join(", ")}` : ""}
+              {game.genres.length ? ` · ${genreLabelList(game.genres).slice(0, 2).join(", ")}` : ""}
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -492,7 +499,8 @@ function CoverGrid({ games, canEdit, onRemove }: { games: Game[]; canEdit: boole
             <button
               type="button"
               onClick={() => onRemove(game.slug)}
-              className="absolute right-2 bottom-2 rounded-full bg-danger/85 px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+              className="absolute right-2 bottom-2 rounded-full bg-danger/85 px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+              aria-label={`Quitar ${game.title} de la lista`}
             >
               Quitar
             </button>
@@ -924,7 +932,7 @@ function AddGamesDialog({ accessToken, list, onClose, onSaved }: { accessToken: 
                         <p className="mt-0.5 truncate text-xs text-muted">
                           {game.developer || "—"}
                           {game.platforms.length ? ` · ${game.platforms.slice(0, 3).join(", ")}` : ""}
-                          {game.genres.length ? ` · ${game.genres.slice(0, 2).join(", ")}` : ""}
+                          {game.genres.length ? ` · ${genreLabelList(game.genres).slice(0, 2).join(", ")}` : ""}
                         </p>
                       </div>
                       {alreadyInList ? (

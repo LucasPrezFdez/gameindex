@@ -127,6 +127,8 @@ export async function getUserFromToken(
   )) as DbUser[];
   const user = rows[0];
   if (!user) return null;
+  // Un baneo invalida también las sesiones ya abiertas, no solo los nuevos inicios de sesión.
+  if (isBanActive(user)) return null;
   return toAuthUser(user);
 }
 

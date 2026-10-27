@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import colors from "tailwindcss/colors";
 
 const config: Config = {
   darkMode: ["class"],
@@ -10,6 +11,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Space Grotesk", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"]
+      },
       colors: {
         background: "#080A12",
         foreground: "#F4F7FB",
@@ -18,8 +24,10 @@ const config: Config = {
         border: "#293044",
         muted: "#9BA7BD",
         electric: "#3B82F6",
-        violet: "#8B5CF6",
-        lime: "#A3E635",
+        // Se conserva la escala completa (violet-200, lime-400…) además del tono de marca:
+        // con un string plano Tailwind descartaba todos los matices y esas clases no existían.
+        violet: { ...colors.violet, DEFAULT: "#8B5CF6" },
+        lime: { ...colors.lime, DEFAULT: "#A3E635" },
         danger: "#F43F5E"
       },
       boxShadow: {

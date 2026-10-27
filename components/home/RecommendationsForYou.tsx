@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuthSession } from "@/hooks/useAuthSession";
+import { genreLabelList } from "@/lib/labels";
 
 type Recommendation = {
   slug: string;
@@ -201,7 +202,7 @@ function RecommendationCard({ item, priority }: { item: Recommendation; priority
         />
         {item.genres.length > 0 && (
           <div className="mt-auto flex flex-wrap gap-1 pt-1">
-            {item.genres.slice(0, 2).map((genre) => (
+            {genreLabelList(item.genres).slice(0, 2).map((genre) => (
               <span
                 key={genre}
                 className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-white/60"
