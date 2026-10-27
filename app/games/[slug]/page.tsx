@@ -21,6 +21,8 @@ import {
   getSimilarGames
 } from "@/services/games";
 import { createServiceDatabaseClient } from "@/services/database";
+import { platformLabelList } from "@/lib/labels";
+import { formatReleaseDate } from "@/lib/utils";
 import { reviewFromRow } from "@/services/community";
 
 type Params = Promise<{ slug: string }>;
@@ -61,9 +63,16 @@ export default async function GameDetailPage({ params }: { params: Params }) {
   const releaseDates = richDetails?.releaseDates ?? [];
   const websites = richDetails?.websites ?? [];
   const franchiseLabel =
-    richDetails?.franchises?.map((entry) => entry.name).filter(Boolean).join(", ") || game.franchise || "Independiente";
-  const gameModesLabel =
-    richDetails?.gameModes?.filter(Boolean).join(", ") || (game.modes.length ? game.modes.join(", ") : "Información no disponible");
+    richDetails?.franchises?.map((entry) => entry.name).filter(Boolean).join(", ") || game.franchise || "";
+  const gameModesLabel = richDetails?.gameModes?.filter(Boolean).join(", ") || game.modes.join(", ");
+  const keyInfo = [
+    { label: "Lanzamiento", value: game.releaseDate ? formatReleaseDate(game.releaseDate) : "Por anunciar" },
+    { label: "Desarrolladora", value: game.developer },
+    { label: "Editora", value: game.publisher },
+    { label: "Motor gráfico", value: game.engine ?? "" },
+    { label: "Modos de juego", value: gameModesLabel },
+    { label: "Saga", value: franchiseLabel }
+  ].filter((entry) => entry.value && entry.value.trim());
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -90,41 +99,45 @@ export default async function GameDetailPage({ params }: { params: Params }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <GameHero game={game} />
 
-      <nav className="container-page sticky top-20 z-30 -mb-4 flex gap-2 overflow-x-auto border-b border-white/10 bg-background/90 py-3 backdrop-blur">
-        {[
-          ["Resumen", "summary"],
-          ["Comunidad", "community-rating"],
-          ["Reseñas", "reviews"],
-          ["Medios", "media"],
-          ["Similares", "similar"]
-        ].map(([label, id]) => (
-          <a key={id} href={`#${id}`} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-muted transition hover:border-electric/50 hover:text-foreground">
-            {label}
-          </a>
-        ))}
+      <nav
+        aria-label="Secciones del juego"
+        className="sticky top-16 z-30 -mb-4 border-b border-white/10 bg-background/90 backdrop-blur-xl lg:top-[68px]"
+      >
+        <div className="container-page flex gap-2 overflow-x-auto py-3 [scrollbar-width:none]">
+          {[
+            ["Resumen", "summary"],
+            ["Medios", "media"],
+            ["Comunidad", "community-rating"],
+            ["Reseñas", "reviews"],
+            ["Similares", "similar"]
+          ].map(([label, id]) => (
+            <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-muted transition hover:border-electric/50 hover:text-foreground">
+              {label}
+            </a>
+          ))}
+        </div>
       </nav>
 
-      <section id="summary" className="container-page grid gap-8 py-10 lg:grid-cols-[1.1fr_.9fr]">
-        <div id="media" className="space-y-5">
+      <section id="summary" className="container-page grid scroll-mt-36 gap-8 py-10 lg:grid-cols-[1.1fr_.9fr]">
+        <div id="media" className="min-w-0 scroll-mt-36 space-y-5">
           <MediaGallery game={game} screenshots={screenshots} videos={videos} />
           <GameDlcs dlcs={dlcs} />
         </div>
         <div className="space-y-5">
-          <Card>
-            <CardHeader><h2 className="text-xl font-bold">Sinopsis</h2></CardHeader>
-            <CardContent><p className="leading-7 text-muted">{game.summary}</p></CardContent>
-          </Card>
+          {game.summary && (
+            <Card>
+              <CardHeader><h2 className="text-xl font-bold">Sinopsis</h2></CardHeader>
+              <CardContent><p className="leading-7 text-muted">{game.summary}</p></CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><h2 className="text-xl font-bold">Información clave</h2></CardHeader>
             <CardContent>
-              <dl className="grid gap-3 text-sm">
-                <Info label="Fecha de lanzamiento" value={game.releaseDate} />
-                <Info label="Desarrolladora" value={game.developer} />
-                <Info label="Publisher" value={game.publisher} />
-                <Info label="Motor gráfico" value={game.engine ?? "No disponible"} />
-                <Info label="Modos" value={gameModesLabel} />
-                <Info label="Saga/franquicia" value={franchiseLabel} />
+              <dl className="divide-y divide-white/[0.06] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] text-sm">
+                {keyInfo.map((entry) => (
+                  <Info key={entry.label} label={entry.label} value={entry.value} />
+                ))}
               </dl>
             </CardContent>
           </Card>
@@ -132,21 +145,22 @@ export default async function GameDetailPage({ params }: { params: Params }) {
           <GameReleaseDates releaseDates={releaseDates} />
           <GameLinks websites={websites} />
 
-          <Card>
-            <CardHeader><h2 className="text-xl font-bold">Dónde jugar</h2></CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {game.platforms.map((platform) => <Badge key={platform} tone="blue">{platform}</Badge>)}
-              </div>
-              <p className="mt-3 text-sm text-muted">Plataformas sincronizadas desde Neon, IGDB o RAWG.</p>
-            </CardContent>
-          </Card>
+          {game.platforms.length > 0 && (
+            <Card>
+              <CardHeader><h2 className="text-xl font-bold">Dónde jugar</h2></CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {platformLabelList(game.platforms).map((platform) => <Badge key={platform} tone="blue">{platform}</Badge>)}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </section>
 
       <GameCommunity game={game} />
 
-      <section id="reviews" className="container-page py-8">
+      <section id="reviews" className="container-page scroll-mt-36 py-8">
         <SectionHeader title="Reseñas y puntuaciones" href={`/games/${game.slug}/reviews`} />
         <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
           <ScoreDistribution
@@ -166,7 +180,7 @@ export default async function GameDetailPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      <section id="similar" className="container-page py-8">
+      <section id="similar" className="container-page scroll-mt-36 py-8">
         <SectionHeader title="Juegos similares" />
         {similar.length ? <GameGrid games={similar} /> : <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-muted">Aún no hay suficientes juegos similares indexados.</div>}
       </section>
@@ -176,7 +190,7 @@ export default async function GameDetailPage({ params }: { params: Params }) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 rounded-xl border border-white/10 bg-white/5 p-3 sm:grid-cols-[180px_1fr]">
+    <div className="grid gap-1 px-4 py-3 sm:grid-cols-[150px_1fr]">
       <dt className="text-muted">{label}</dt>
       <dd className="font-medium">{value}</dd>
     </div>
@@ -190,6 +204,7 @@ async function getReviewSnippets(slug: string) {
       .from("reviews")
       .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at), games:game_id!inner(slug,title)")
       .eq("games.slug", slug)
+      .is("hidden_at", null)
       .order("helpful_count", { ascending: false })
       .limit(3);
     if (error) return [];

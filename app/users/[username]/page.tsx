@@ -9,6 +9,7 @@ import { communityLists } from "@/data/community";
 import type { Profile, ProfileStats } from "@/data/games";
 import { getExploreGames } from "@/services/games";
 import { getProfileRowByUsername, getPublicUserProfile, type PublicProfileActivity } from "@/services/users";
+import { genreLabelList, platformLabelList } from "@/lib/labels";
 
 type Params = Promise<{ username: string }>;
 
@@ -106,11 +107,11 @@ export default async function UserPage({ params }: { params: Params }) {
 type ActivityType = "rating" | "review" | "list" | "status" | "favorite";
 
 const ACTIVITY_STYLE: Record<ActivityType, { bg: string; text: string; ring: string }> = {
-  status:   { bg: "bg-electric/12", text: "text-electric", ring: "ring-electric/20" },
-  favorite: { bg: "bg-rose-500/12", text: "text-rose-400", ring: "ring-rose-500/20" },
+  status:   { bg: "bg-electric/[0.12]", text: "text-electric", ring: "ring-electric/20" },
+  favorite: { bg: "bg-rose-500/[0.12]", text: "text-rose-400", ring: "ring-rose-500/20" },
   list:     { bg: "bg-violet/15",   text: "text-violet",   ring: "ring-violet/25" },
-  rating:   { bg: "bg-lime/12",     text: "text-lime",     ring: "ring-lime/20" },
-  review:   { bg: "bg-amber-500/12",text: "text-amber-400",ring: "ring-amber-500/20" }
+  rating:   { bg: "bg-lime/[0.12]",     text: "text-lime",     ring: "ring-lime/20" },
+  review:   { bg: "bg-amber-500/[0.12]",text: "text-amber-400",ring: "ring-amber-500/20" }
 };
 
 function ActivityIcon({ type }: { type: ActivityType }) {
@@ -240,10 +241,10 @@ function ProfilePreferencesBar({ profile }: { profile: Profile }) {
       />
       <div className="relative grid gap-3 p-4 md:grid-cols-2 md:gap-4 md:p-5">
         {hasPlatforms && (
-          <PrefPanel eyebrow="Hardware" title="Plataformas" accent="electric" values={profile.favoritePlatforms} icon="device" />
+          <PrefPanel eyebrow="Hardware" title="Plataformas" accent="electric" values={platformLabelList(profile.favoritePlatforms)} icon="device" />
         )}
         {hasGenres && (
-          <PrefPanel eyebrow="Gustos" title="Generos" accent="lime" values={profile.favoriteGenres} icon="sparkles" />
+          <PrefPanel eyebrow="Gustos" title="Géneros" accent="lime" values={genreLabelList(profile.favoriteGenres)} icon="sparkles" />
         )}
       </div>
     </div>

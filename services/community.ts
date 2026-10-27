@@ -96,37 +96,74 @@ export async function ensureProfile(serviceClient: ReturnType<typeof createServi
   if (error) throw new Error(error.message);
 }
 
-export async function ensureGame(serviceClient: ReturnType<typeof createServiceDatabaseClient>, slug: string, game?: Partial<Game>) {
-  const { data: existing, error: existingError } = await serviceClient
-    .from("games")
-    .select("id, slug, title, user_score, rating_count, review_count")
-    .eq("slug", slug)
-    .maybeSingle();
+export class GameNotFoundError extends Error {
+  constructor(slug: string) {
+    super(`No existe ningún juego con el identificador "${slug}".`);
+    this.name = "GameNotFoundError";
+  }
+}
+
+/**
+ * Devuelve la fila de `games` para el slug, creándola si aún no existe.
+ *
+ * Los datos del juego se resuelven siempre en servidor a través del catálogo
+ * (`services/games`). El cliente solo aporta el slug: así nadie puede inyectar
+ * títulos, portadas o puntuaciones inventadas en el catálogo público.
+ */
+export async function ensureGame(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  slug: string,
+  // Se mantiene por compatibilidad con los llamadores; sus datos se ignoran a propósito.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _clientGame?: Partial<Game>
+) {
+  const selectExisting = () =>
+    serviceClient
+      .from("games")
+      .select("id, slug, title, user_score, rating_count, review_count")
+      .eq("slug", slug)
+      .maybeSingle();
+
+  const { data: existing, error: existingError } = await selectExisting();
 
   if (existingError) throw new Error(existingError.message);
   if (existing) return existing;
 
-  const title = String(game?.title ?? slug).trim() || slug;
+  // Import dinámico: services/games es pesado y solo hace falta cuando el juego no está cacheado.
+  const { getGameBySlug } = await import("@/services/games");
+  const game = await getGameBySlug(slug);
+  if (!game) throw new GameNotFoundError(slug);
+
+  // getGameBySlug puede haber persistido el juego en segundo plano mientras tanto.
+  const { data: persisted } = await selectExisting();
+  if (persisted) return persisted;
+
+  const title = String(game.title ?? slug).trim() || slug;
   const { data, error } = await serviceClient
     .from("games")
     .insert({
       slug,
       title,
-      summary: game?.summary ?? null,
-      release_year: game?.year && game.year > 0 ? game.year : null,
-      status: game?.status ?? "released",
-      cover_url: game?.coverUrl ?? null,
-      hero_url: game?.heroUrl ?? game?.coverUrl ?? null,
-      user_score: game?.userScore ?? 0,
-      critic_score: game?.criticScore ?? null,
-      rating_count: game?.ratings ?? 0,
-      review_count: game?.reviews ?? 0,
-      popularity_score: (game?.ratings ?? 0) + (game?.reviews ?? 0) * 2
+      summary: game.summary ?? null,
+      release_year: game.year && game.year > 0 ? game.year : null,
+      status: game.status ?? "released",
+      cover_url: game.coverUrl || null,
+      hero_url: game.heroUrl || game.coverUrl || null,
+      user_score: game.userScore ?? 0,
+      critic_score: game.criticScore ?? null,
+      rating_count: game.ratings ?? 0,
+      review_count: game.reviews ?? 0,
+      popularity_score: (game.ratings ?? 0) + (game.reviews ?? 0) * 2
     })
     .select("id, slug, title, user_score, rating_count, review_count")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "No se pudo preparar el juego.");
+  if (error || !data) {
+    // Carrera con otra petición que lo insertó a la vez (slug único): reutilizamos esa fila.
+    const { data: raced } = await selectExisting();
+    if (raced) return raced;
+    throw new Error(error?.message ?? "No se pudo preparar el juego.");
+  }
   return data;
 }
 

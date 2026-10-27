@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { fanoutWishlistReleases } from "@/services/notifications";
 
@@ -30,12 +31,19 @@ function isAuthorized(request: Request) {
   const header = request.headers.get("authorization");
   if (header?.toLowerCase().startsWith("bearer ")) {
     const token = header.slice("bearer ".length).trim();
-    if (token === expected) return true;
+    if (safeEqual(token, expected)) return true;
   }
 
   const url = new URL(request.url);
   const queryToken = url.searchParams.get("token");
-  if (queryToken === expected) return true;
+  if (queryToken && safeEqual(queryToken, expected)) return true;
 
   return false;
+}
+
+// Comparación en tiempo constante (se comparan hashes para igualar longitudes).
+function safeEqual(received: string, expected: string) {
+  const a = createHash("sha256").update(received).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
 }

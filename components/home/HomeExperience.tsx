@@ -14,11 +14,19 @@ import {
 } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Game } from "@/data/games";
 import { communityLists as fallbackCommunityLists, type CommunityListGame, type CommunityListSeed } from "@/data/community";
+import { genreLabelList } from "@/lib/labels";
 import { arcadeTheme, type HeadlinePart, type HomeTheme } from "@/lib/theme";
 import { formatCompactNumber, slugify } from "@/lib/utils";
 import { RecommendationsForYou } from "@/components/home/RecommendationsForYou";
+
+export type HomeStats = {
+  games: number;
+  reviews: number;
+  members: number;
+};
 
 type EnhancedGame = Game & { accent: string };
 type PlatformKind = "pc" | "playstation" | "xbox" | "nintendo" | "mobile" | "mac" | "linux" | "generic";
@@ -177,17 +185,39 @@ function buildPlatforms(games: EnhancedGame[]): Platform[] {
     }));
 }
 
-function useWindowScrollY() {
+/**
+ * Scroll vertical para el parallax del hero. Se agrupa en un frame de animación y se
+ * deja de actualizar pasado `max` (el hero ya no se ve), así el resto de la home no se
+ * vuelve a renderizar en cada evento de scroll. Con "reducir movimiento" devuelve 0.
+ */
+function useWindowScrollY(max = 1200) {
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setScrollY(Math.min(window.scrollY, max));
+      });
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [max]);
 
   return scrollY;
+}
+
+function formatStat(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
 }
 
 function useInView<T extends HTMLElement = HTMLDivElement>() {
@@ -213,14 +243,16 @@ export function HomeExperience({
   collections,
   communityLists,
   initialGames,
+  stats,
   theme = arcadeTheme
 }: {
   collections?: HomeCollections;
   communityLists?: CommunityListSeed[];
   initialGames?: Game[];
+  stats?: HomeStats;
   theme?: HomeTheme;
 }) {
-  const scrollY = useWindowScrollY();
+  const currentYear = new Date().getFullYear();
   const collectionGames = useMemo(
     () => mergeGameLists([collections?.trending, collections?.topRated, collections?.upcoming, collections?.newReleases]),
     [collections?.newReleases, collections?.topRated, collections?.trending, collections?.upcoming]
@@ -334,9 +366,9 @@ export function HomeExperience({
       <ThemeContext.Provider value={theme}>
         <section className="container-page -mt-20 grid min-h-screen place-items-center pt-20 text-center">
           <div className="max-w-xl rounded-3xl border border-white/10 bg-white/5 p-8">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-electric">API requerida</p>
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-electric">Catálogo no disponible</p>
             <h1 className="mt-3 text-4xl font-black">No hay juegos para mostrar</h1>
-            <p className="mt-3 text-muted">Configura IGDB o RAWG en .env para cargar el catálogo desde la API.</p>
+            <p className="mt-3 text-muted">No hemos podido cargar el catálogo ahora mismo. Vuelve a intentarlo en unos minutos.</p>
           </div>
         </section>
       </ThemeContext.Provider>
@@ -358,12 +390,12 @@ export function HomeExperience({
           <NoiseOverlay opacity={theme.noiseOpacity} />
         </div>
 
-        <main className="relative z-10">
+        <div className="relative z-10">
           <Hero
             activeFilter={activeFilter}
             games={games}
             query={query}
-            scrollY={scrollY}
+            stats={stats}
             setActiveFilter={setActiveFilter}
             setQuery={setQuery}
           />
@@ -383,8 +415,25 @@ export function HomeExperience({
           {!isSearching && <RecommendationsForYou />}
 
           {isSearching ? (
-            <Section eyebrow="Resultados" title={`${filtered.length} juegos encontrados`}>
-              <Grid games={filtered} />
+            <Section
+              eyebrow="Resultados"
+              title={filtered.length ? `${filtered.length} juegos destacados coinciden` : "Sin coincidencias aquí"}
+              href={query.trim() ? `/games?q=${encodeURIComponent(query.trim())}` : "/games"}
+            >
+              {filtered.length ? (
+                <Grid games={filtered} />
+              ) : (
+                <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
+                  <p className="text-base font-bold">Ninguno de los juegos destacados coincide.</p>
+                  <p className="mt-2 text-sm text-muted">Busca en el catálogo completo, con filtros por plataforma, género y año.</p>
+                  <Link
+                    href={query.trim() ? `/games?q=${encodeURIComponent(query.trim())}` : "/games"}
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-electric px-6 py-3 text-sm font-bold text-white transition hover:bg-electric/90"
+                  >
+                    {query.trim() ? `Buscar “${query.trim()}” en el catálogo` : "Abrir el catálogo"} →
+                  </Link>
+                </div>
+              )}
             </Section>
           ) : (
             <>
@@ -410,7 +459,7 @@ export function HomeExperience({
                 <Grid games={upcoming.length ? upcoming : games.slice(0, 4)} />
               </Section>
 
-              <Section eyebrow="Cosecha 2026" href="/games?year=2026&sort=score" title="Lo mejor de este año">
+              <Section eyebrow={`Cosecha ${currentYear}`} href={`/games?year=${currentYear}&sort=score`} title="Lo mejor de este año">
                 <DragCarousel>
                   {bestOfYear.map((game) => (
                     <div key={game.slug} style={{ flex: "0 0 240px", scrollSnapAlign: "start" }}>
@@ -442,14 +491,14 @@ export function HomeExperience({
 
               <PlatformSection platforms={platforms} />
 
-              <Section eyebrow="Comunidad" href="/lists/rpg-turnos-imprescindibles" title="Listas que están de moda">
+              <Section eyebrow="Comunidad" title="Listas que están de moda">
                 <ListsGrid games={games} lists={lists} />
               </Section>
 
-              <FinalCTA games={games} />
+              <FinalCTA games={games} stats={stats} />
             </>
           )}
-        </main>
+        </div>
 
         {openGame && <GameModal game={openGame} onClose={() => setOpenGame(null)} />}
 
@@ -461,32 +510,46 @@ export function HomeExperience({
 
 function AnimatedMesh() {
   const theme = useTheme();
-  const [time, setTime] = useState(0);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const meshBlobs = theme.meshBlobs;
 
+  // El fondo se anima escribiendo directamente en el estilo del nodo, a ~24 fps, sin
+  // pasar por el estado de React (antes se re-renderizaba en cada frame). Se pausa con
+  // la pestaña oculta y queda estático con "reducir movimiento".
   useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const paint = (time: number) => {
+      node.style.background = meshBlobs
+        .map((blob, index) => {
+          const x = blob.x + Math.sin(time * blob.speed + index) * blob.range;
+          const y = blob.y + Math.cos(time * blob.speed * 0.8 + index * 1.3) * blob.range;
+          return `radial-gradient(circle at ${x}% ${y}%, ${blob.color} 0%, transparent ${blob.size}%)`;
+        })
+        .join(",");
+    };
+
+    paint(0);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
     let raf = 0;
+    let last = 0;
     const start = performance.now();
-    const tick = () => {
-      setTime((performance.now() - start) / 1000);
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (document.hidden || now - last < 42) return;
+      last = now;
+      paint((now - start) / 1000);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const blobs = theme.meshBlobs
-    .map((blob, index) => {
-      const x = blob.x + Math.sin(time * blob.speed + index) * blob.range;
-      const y = blob.y + Math.cos(time * blob.speed * 0.8 + index * 1.3) * blob.range;
-      return `radial-gradient(circle at ${x}% ${y}%, ${blob.color} 0%, transparent ${blob.size}%)`;
-    })
-    .join(",");
+  }, [meshBlobs]);
 
   return (
     <div
+      ref={ref}
       className="absolute inset-0"
       style={{
-        background: blobs,
         filter: "blur(40px) saturate(1.4)",
         opacity: 0.65
       }}
@@ -512,25 +575,32 @@ function Hero({
   activeFilter,
   games,
   query,
-  scrollY,
+  stats,
   setActiveFilter,
   setQuery
 }: {
   activeFilter: string;
   games: EnhancedGame[];
   query: string;
-  scrollY: number;
+  stats?: HomeStats;
   setActiveFilter: Dispatch<SetStateAction<string>>;
   setQuery: Dispatch<SetStateAction<string>>;
 }) {
   const theme = useTheme();
+  const scrollY = useWindowScrollY();
   const featuredGame = games[0];
+  const currentYear = String(new Date().getFullYear());
+  const heroStats = [
+    { label: "Juegos", value: stats?.games ?? 0 },
+    { label: "Reseñas", value: stats?.reviews ?? 0 },
+    { label: "Miembros", value: stats?.members ?? 0 }
+  ].filter((stat) => stat.value > 0);
   const parallax1 = scrollY * 0.4;
   const parallax2 = scrollY * 0.25;
   const parallax3 = scrollY * 0.15;
   const tags = [
     { label: "RPG", filter: "all", query: "RPG" },
-    { label: "2026", filter: "all", query: "2026" },
+    { label: currentYear, filter: "all", query: currentYear },
     { label: "PlayStation", filter: "playstation", query: "" },
     { label: "Indie", filter: "all", query: "Indie" },
     { label: "Co-op", filter: "all", query: "Co-op" },
@@ -571,7 +641,9 @@ function Hero({
             <div className="absolute inset-0" style={{ background: theme.heroGradient }} />
           </div>
 
-          <FloatingDeco scrollY={scrollY} />
+          <div className="hidden lg:block" aria-hidden>
+            <FloatingDeco scrollY={scrollY} />
+          </div>
 
           <div
             className="relative grid gap-10 p-6 sm:p-8 md:p-12 lg:grid-cols-[1.4fr,1fr] lg:p-16"
@@ -653,11 +725,13 @@ function Hero({
                 })}
               </div>
 
-              <div className="mt-10 grid max-w-md grid-cols-3 gap-4 pt-6" style={{ borderTop: `1px solid ${theme.border}` }}>
-                <Stat label="Juegos" value="48.2k" />
-                <Stat label="Reseñas" value="1.4M" />
-                <Stat label="Jugadores" value="220k" />
-              </div>
+              {heroStats.length > 0 && (
+                <div className="mt-10 grid max-w-md grid-cols-3 gap-4 pt-6" style={{ borderTop: `1px solid ${theme.border}` }}>
+                  {heroStats.map((stat) => (
+                    <Stat key={stat.label} label={stat.label} value={formatStat(stat.value)} />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div
@@ -824,7 +898,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
           animation: "home-float 4s ease-in-out infinite"
         }}
       >
-        Featured
+        Destacado
       </div>
 
       <div
@@ -880,7 +954,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
             {game.title}
           </h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {game.genres.map((genre) => (
+            {genreLabelList(game.genres).map((genre) => (
               <span
                 key={genre}
                 className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
@@ -922,7 +996,10 @@ function BigSearch({
   setQuery: Dispatch<SetStateAction<string>>;
 }) {
   const theme = useTheme();
+  const router = useRouter();
   const [focused, setFocused] = useState(false);
+  const trimmedQuery = query.trim();
+  const catalogHref = trimmedQuery ? `/games?q=${encodeURIComponent(trimmedQuery)}` : "/games";
   const results = useMemo(() => {
     if (query.trim().length < 2) return [];
     return games
@@ -936,9 +1013,20 @@ function BigSearch({
   }, [games, query]);
 
   return (
-    <div className="relative">
+    <form
+      className="relative"
+      role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        router.push(catalogHref);
+      }}
+    >
+      <label htmlFor="home-search" className="sr-only">
+        Buscar videojuegos
+      </label>
       <div className="relative flex items-center">
         <svg
+          aria-hidden
           className="pointer-events-none absolute left-5"
           fill="none"
           height="22"
@@ -952,7 +1040,11 @@ function BigSearch({
           <path d="m21 21-4.3-4.3" />
         </svg>
         <input
-          className="w-full rounded-2xl py-5 pl-14 pr-6 text-base font-medium outline-none transition"
+          id="home-search"
+          type="search"
+          autoComplete="off"
+          enterKeyHint="search"
+          className="w-full rounded-2xl py-5 pl-14 pr-6 text-base font-medium outline-none transition [&::-webkit-search-cancel-button]:hidden"
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setFocused(true)}
@@ -970,7 +1062,7 @@ function BigSearch({
         />
       </div>
 
-      {focused && results.length > 0 && (
+      {focused && trimmedQuery.length >= 2 && (
         <div
           className="absolute left-0 right-0 top-full z-30 mt-3 overflow-hidden rounded-2xl"
           style={{
@@ -984,7 +1076,7 @@ function BigSearch({
             className="px-4 py-2 text-xs font-black uppercase tracking-wider"
             style={{ color: theme.muted, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}` }}
           >
-            {results.length} resultados
+            {results.length ? `${results.length} destacados` : "Sin coincidencias entre los destacados"}
           </div>
           {results.map((game) => (
             <Link
@@ -1002,15 +1094,23 @@ function BigSearch({
                   {game.title}
                 </div>
                 <div className="truncate text-xs" style={{ color: theme.muted }}>
-                  {game.year || "TBA"} · {game.developer} · {game.genres.slice(0, 2).join(", ")}
+                  {game.year || "Por anunciar"} · {game.developer} · {genreLabelList(game.genres).slice(0, 2).join(", ")}
                 </div>
               </div>
               <RatingPill score={game.userScore} size="sm" />
             </Link>
           ))}
+          <Link
+            href={catalogHref}
+            className="flex items-center justify-between px-4 py-3 text-sm font-bold transition hover:bg-white/5"
+            style={{ color: theme.accent, borderTop: `1px solid ${theme.border}` }}
+          >
+            Buscar “{trimmedQuery}” en todo el catálogo
+            <span aria-hidden>→</span>
+          </Link>
         </div>
       )}
-    </div>
+    </form>
   );
 }
 
@@ -1473,7 +1573,7 @@ function StatusBadge({ status }: { status: Game["status"] }) {
           animation: "home-pulse 1.5s ease-in-out infinite"
         }}
       />
-      {isUpcoming ? "Próximo" : "Early"}
+      {isUpcoming ? "Próximo" : "Acceso anticipado"}
     </span>
   );
 }
@@ -1575,7 +1675,7 @@ function RankingRow({
           <span className="hidden sm:inline" style={{ opacity: 0.4 }}>
             ·
           </span>
-          <span className="hidden sm:inline">{game.genres.slice(0, 2).join(", ")}</span>
+          <span className="hidden sm:inline">{genreLabelList(game.genres).slice(0, 2).join(", ")}</span>
         </div>
       </div>
       <div className="flex items-center gap-4">
@@ -1837,7 +1937,7 @@ function normalizeTitleForMatch(value: string) {
     .trim();
 }
 
-function FinalCTA({ games }: { games: EnhancedGame[] }) {
+function FinalCTA({ games, stats }: { games: EnhancedGame[]; stats?: HomeStats }) {
   const theme = useTheme();
   const [ref, inView] = useInView<HTMLDivElement>();
 
@@ -1853,11 +1953,14 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
     { left: "80%", top: "2%", w: 60, h: 84, rot: -14, delay: 2.2, dur: 7, opacity: 0.4 }
   ];
 
-  const stats: { value: string; label: string }[] = [
-    { value: "10k+", label: "Juegos" },
-    { value: "50k+", label: "Jugadores" },
-    { value: "120k+", label: "Reseñas" }
-  ];
+  // Mismas cifras reales que el hero (antes eran números inventados y distintos en cada sitio).
+  const ctaStats = [
+    { value: stats?.games ?? 0, label: "Juegos" },
+    { value: stats?.members ?? 0, label: "Miembros" },
+    { value: stats?.reviews ?? 0, label: "Reseñas" }
+  ]
+    .filter((stat) => stat.value > 0)
+    .map((stat) => ({ label: stat.label, value: formatCompactNumber(stat.value) }));
 
   return (
     <section className="px-4 py-16 sm:px-6 md:py-24 lg:px-8">
@@ -1967,14 +2070,14 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
             </p>
 
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-              <button
+              <Link
+                href="/auth?mode=signup"
                 className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-8 py-4 text-base font-black transition hover:scale-[1.03]"
                 style={{
                   background: theme.btnPrimary,
                   color: theme.btnPrimaryFg,
                   boxShadow: theme.btnGlow
                 }}
-                type="button"
               >
                 <span
                   className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
@@ -1985,7 +2088,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                   <path d="M12 5v14M5 12h14" />
                 </svg>
                 <span className="relative">Crear cuenta gratis</span>
-              </button>
+              </Link>
               <Link
                 className="group inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-black transition hover:scale-[1.03]"
                 href="/games"
@@ -2002,11 +2105,12 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
               </Link>
             </div>
 
+            {ctaStats.length > 0 && (
             <div
               className="mt-12 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 border-t pt-8"
               style={{ borderColor: theme.border }}
             >
-              {stats.map((stat) => (
+              {ctaStats.map((stat) => (
                 <div key={stat.label} className="flex flex-col items-center">
                   <div
                     className="text-2xl font-black tracking-tight sm:text-3xl"
@@ -2023,6 +2127,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                 </div>
               ))}
             </div>
+            )}
 
             <p className="mt-6 text-xs" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
               Registro gratuito · Catálogo actualizado · Comunidad activa
@@ -2036,13 +2141,23 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
 
 function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void }) {
   const theme = useTheme();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const titleId = `game-modal-${game.slug}`;
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
   }, [onClose]);
 
   return (
@@ -2056,7 +2171,10 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
       }}
     >
       <div
-        className="relative w-full max-w-2xl overflow-hidden rounded-3xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl"
         onClick={(event) => event.stopPropagation()}
         style={{
           background: theme.cardBg,
@@ -2070,6 +2188,7 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
           ) : null}
           <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, transparent, ${theme.cardBg})` }} />
           <button
+            ref={closeButtonRef}
             aria-label="Cerrar"
             className="absolute right-4 top-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             onClick={onClose}
@@ -2094,16 +2213,16 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
           ) : null}
           <div className="sm:pt-24">
             <div className="mb-1 text-xs font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
-              {game.developer} · {game.year || "TBA"}
+              {[game.developer, game.year || "Por anunciar"].filter(Boolean).join(" · ")}
             </div>
-            <h2 className="text-2xl font-black leading-tight md:text-3xl" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+            <h2 id={titleId} className="text-2xl font-black leading-tight md:text-3xl" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
               {game.title}
             </h2>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: theme.muted }}>
               {game.summary}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {game.genres.map((genre) => (
+              {genreLabelList(game.genres).map((genre) => (
                 <span
                   key={genre}
                   className="rounded-full px-3 py-1 text-xs font-bold"
@@ -2118,6 +2237,22 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
               <div className="text-xs" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
                 {formatCompactNumber(game.ratings)} votos · {formatCompactNumber(game.reviews)} reseñas
               </div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href={`/games/${game.slug}`}
+                className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition hover:opacity-90"
+                style={{ background: theme.btnPrimary, color: theme.btnPrimaryFg }}
+              >
+                Ver ficha completa →
+              </Link>
+              <Link
+                href={`/games/${game.slug}/reviews`}
+                className="inline-flex items-center rounded-full px-5 py-2.5 text-sm font-bold transition hover:bg-white/10"
+                style={{ color: theme.fg, border: `1px solid ${theme.border}` }}
+              >
+                Reseñas
+              </Link>
             </div>
           </div>
         </div>

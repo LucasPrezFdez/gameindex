@@ -1,19 +1,30 @@
 ﻿import { NextResponse } from "next/server";
 import { createServiceDatabaseClient } from "@/services/database";
 import { getUserFromToken } from "@/services/auth";
-import { recordActivity } from "@/services/community";
+import { ensureGame as ensureCatalogGame, GameNotFoundError, recordActivity } from "@/services/community";
 import { syncDefaultProfileLists } from "@/services/lists";
 
 type Params = Promise<{ slug: string }>;
 
 const MIN_COMMENT_LENGTH = 3;
 const MAX_COMMENT_LENGTH = 1000;
-const VALID_GAME_STATUSES = new Set(["released", "upcoming", "early_access"]);
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Params }) {
   const { slug } = await params;
+
+  // Sin base de datos no hay valoraciones de la comunidad: devolvemos un estado vacío
+  // en lugar de un 500 para que la ficha del juego siga funcionando.
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({
+      averageScore: 0,
+      ratingCount: 0,
+      userRating: null,
+      comments: [],
+    });
+  }
+
   const serviceClient = createServiceDatabaseClient();
   const game = await getGameBySlug(serviceClient, slug);
   const userId = await getAuthenticatedUserId(request);
@@ -144,7 +155,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
   if (gameResult.error || !gameResult.game) {
     return NextResponse.json(
       { error: gameResult.error ?? "No se pudo preparar el juego." },
-      { status: 500 },
+      { status: "notFound" in gameResult && gameResult.notFound ? 404 : 500 },
     );
   }
 
@@ -215,32 +226,17 @@ async function ensureGame(
     return { game: existing };
   }
 
-  const title = String(gamePayload?.title ?? slug).trim() || slug;
-  const status = VALID_GAME_STATUSES.has(gamePayload?.status)
-    ? gamePayload.status
-    : "released";
-  const releaseYear = Number(gamePayload?.releaseYear);
-
-  const { data, error } = await serviceClient
-    .from("games")
-    .insert({
-      slug,
-      title,
-      summary: gamePayload?.summary ? String(gamePayload.summary) : null,
-      release_year:
-        Number.isInteger(releaseYear) && releaseYear > 0 ? releaseYear : null,
-      status,
-      cover_url: gamePayload?.coverUrl ? String(gamePayload.coverUrl) : null,
-      hero_url: gamePayload?.heroUrl ? String(gamePayload.heroUrl) : null,
-    })
-    .select("id, user_score, rating_count")
-    .single();
-
-  if (error) {
-    return { game: null, error: error.message };
+  // Los datos del juego se resuelven en servidor (nunca desde el payload del cliente).
+  try {
+    const created = await ensureCatalogGame(serviceClient, slug, gamePayload);
+    return { game: created };
+  } catch (error) {
+    return {
+      game: null,
+      error: error instanceof Error ? error.message : "No se pudo preparar el juego.",
+      notFound: error instanceof GameNotFoundError,
+    };
   }
-
-  return { game: data };
 }
 
 async function ensureProfile(
@@ -318,10 +314,12 @@ async function recalculateGameStats(
   serviceClient: ReturnType<typeof createServiceDatabaseClient>,
   gameId: string,
 ) {
+  // Las valoraciones ocultadas por moderación no cuentan para la media.
   const { data, error } = await serviceClient
     .from("ratings")
     .select("score")
-    .eq("game_id", gameId);
+    .eq("game_id", gameId)
+    .is("hidden_at", null);
 
   if (error) {
     return { error: error.message };

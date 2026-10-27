@@ -1,4 +1,6 @@
-export function EmptyState({ title, body }: { title: string; body: string }) {
+import type { ReactNode } from "react";
+
+export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center">
       <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-muted/40">
@@ -8,7 +10,8 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
         </svg>
       </div>
       <h3 className="text-base font-bold">{title}</h3>
-      <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">{body}</p>
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
+      {action && <div className="mt-6 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
   );
 }

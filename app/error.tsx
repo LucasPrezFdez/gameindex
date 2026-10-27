@@ -2,6 +2,7 @@
 
 import { useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 
 const recoveryTips = [
@@ -17,6 +18,7 @@ export default function GlobalRouteError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
   const [isRetrying, startRetry] = useTransition();
 
   useEffect(() => {
@@ -79,7 +81,13 @@ export default function GlobalRouteError({
                 <Button
                   className="h-12 gap-2 px-5"
                   disabled={isRetrying}
-                  onClick={() => startRetry(() => reset())}
+                  onClick={() =>
+                    // refresh() vuelve a pedir el render del servidor; reset() solo no recupera errores de server components.
+                    startRetry(() => {
+                      router.refresh();
+                      reset();
+                    })
+                  }
                 >
                   {isRetrying ? (
                     <>

@@ -25,6 +25,7 @@ export function ReviewCard(props: ReviewCardProps) {
   const [helpfulCount, setHelpfulCount] = useState(review.helpfulCount);
   const [voted, setVoted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [spoilerRevealed, setSpoilerRevealed] = useState(false);
 
   const canVote = Boolean(review.id) && isAuthenticated && !voted;
   const redirectTo = review.gameSlug ? `/games/${review.gameSlug}` : "/";
@@ -78,10 +79,28 @@ export function ReviewCard(props: ReviewCardProps) {
         </div>
         <RatingBadge score={review.score} compact />
       </div>
-      <div
-        className="prose-review mt-4 text-sm leading-6 text-muted"
-        dangerouslySetInnerHTML={{ __html: renderReviewBody(review.body) }}
-      />
+      {review.hasSpoilers && !spoilerRevealed ? (
+        <div className="relative mt-4 overflow-hidden rounded-xl">
+          <div
+            aria-hidden
+            className="prose-review pointer-events-none max-h-28 select-none text-sm leading-6 text-muted blur-md"
+            dangerouslySetInnerHTML={{ __html: renderReviewBody(review.body) }}
+          />
+          <div className="absolute inset-0 grid place-items-center bg-background/40">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">Contiene spoilers</p>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setSpoilerRevealed(true)}>
+                Mostrar reseña
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="prose-review mt-4 text-sm leading-6 text-muted"
+          dangerouslySetInnerHTML={{ __html: renderReviewBody(review.body) }}
+        />
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted">
         {review.hasSpoilers && <Badge tone="danger">Spoilers</Badge>}
         {review.id ? (

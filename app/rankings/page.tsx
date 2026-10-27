@@ -7,6 +7,7 @@ import { getExploreGames } from "@/services/games";
 import { formatCompactNumber } from "@/lib/utils";
 import { dedupeBySlug, rankByBayesian } from "@/lib/ranking";
 import { RankingCard } from "@/components/rankings/RankingCard";
+import { genreLabel } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -295,7 +296,7 @@ function PodiumSlot({
           {game.title}
         </p>
         <p className="mt-0.5 line-clamp-1 text-[11px] uppercase tracking-wider text-muted">
-          {game.year || "—"} · {game.genres[0] ?? "Sin género"}
+          {game.year || "—"} · {game.genres[0] ? genreLabel(game.genres[0]) : "Sin género"}
         </p>
       </div>
     </Link>

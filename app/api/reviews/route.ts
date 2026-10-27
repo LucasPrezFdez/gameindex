@@ -2,6 +2,7 @@ import type { Game } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import {
   ensureGame,
+  GameNotFoundError,
   ensureProfile,
   getUserFromRequest,
   recalculateGameStats,
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
   const username = searchParams.get("username") ?? undefined;
   const page = getPositiveInteger(searchParams.get("page"), 1);
   const pageSize = clampPageSize(searchParams.get("pageSize"), 20);
+  // Sin base de datos configurada no hay reseñas: respuesta vacía en vez de un 500.
+  if (!process.env.DATABASE_URL) return jsonOk({ reviews: [], count: 0, page, pageSize });
   const serviceClient = createServiceDatabaseClient();
 
   let query = serviceClient
@@ -88,7 +91,15 @@ export async function POST(request: Request) {
 
   const serviceClient = createServiceDatabaseClient();
   await ensureProfile(serviceClient, auth.user);
-  const dbGame = await ensureGame(serviceClient, slug, game);
+  let dbGame: Awaited<ReturnType<typeof ensureGame>>;
+  try {
+    dbGame = await ensureGame(serviceClient, slug, game);
+  } catch (error) {
+    return jsonError(
+      error instanceof Error ? error.message : "No se pudo preparar el juego.",
+      error instanceof GameNotFoundError ? 404 : 500
+    );
+  }
   const now = new Date().toISOString();
 
   const { data, error } = await serviceClient

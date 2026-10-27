@@ -3,6 +3,7 @@ import type { Game, UserGameStatus } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import {
   ensureGame,
+  GameNotFoundError,
   ensureProfile,
   getUserFromRequest,
   recordActivity,
@@ -79,7 +80,15 @@ export async function POST(request: Request) {
 
   const serviceClient = createServiceDatabaseClient();
   await ensureProfile(serviceClient, auth.user);
-  const dbGame = await ensureGame(serviceClient, gameSlug, game);
+  let dbGame: Awaited<ReturnType<typeof ensureGame>>;
+  try {
+    dbGame = await ensureGame(serviceClient, gameSlug, game);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "No se pudo preparar el juego." },
+      { status: error instanceof GameNotFoundError ? 404 : 500 }
+    );
+  }
 
   if (!enabled) {
     const { error } = await serviceClient

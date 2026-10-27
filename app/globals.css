@@ -22,8 +22,24 @@
   animation: library-card-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+dialog[open] {
+  animation: dialog-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .library-card {
+  .library-card,
+  dialog[open] {
     animation: none;
   }
 }
@@ -52,6 +68,12 @@ body {
 }
 
 @layer base {
+  h1,
+  h2 {
+    @apply font-display;
+    letter-spacing: -0.02em;
+  }
+
   a,
   button,
   input,

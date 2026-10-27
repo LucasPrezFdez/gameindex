@@ -1,6 +1,6 @@
 ﻿import type { Game } from "@/data/games";
 import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
-import { ensureGame, profileFromRow } from "@/services/community";
+import { ensureGame, GameNotFoundError, profileFromRow } from "@/services/community";
 import { slugify } from "@/lib/utils";
 
 export const DEFAULT_PROFILE_LISTS = [
@@ -62,21 +62,36 @@ export async function upsertListItems(
   listId: string,
   games: Partial<Game>[]
 ) {
-  if (games.length === 0) return;
+  if (games.length === 0) return [] as string[];
 
   const rows = [];
-  for (const [index, game] of games.entries()) {
+  const seenGameIds = new Set<string>();
+  for (const game of games) {
     if (!game.slug) continue;
-    const dbGame = await ensureGame(serviceClient, game.slug, game);
+    let dbGame: Awaited<ReturnType<typeof ensureGame>>;
+    try {
+      dbGame = await ensureGame(serviceClient, game.slug, game);
+    } catch (error) {
+      // Un slug desconocido no debe tumbar toda la lista: se omite ese juego.
+      if (error instanceof GameNotFoundError) continue;
+      throw error;
+    }
+    // Un mismo juego dos veces en el payload haría fallar el upsert entero
+    // ("ON CONFLICT DO UPDATE cannot affect row a second time").
+    if (seenGameIds.has(dbGame.id)) continue;
+    seenGameIds.add(dbGame.id);
     rows.push({
       list_id: listId,
       game_id: dbGame.id,
-      position: index + 1,
+      position: rows.length + 1,
       note: typeof (game as any).note === "string" ? (game as any).note : null
     });
   }
 
-  if (rows.length) await serviceClient.from("list_items").upsert(rows, { onConflict: "list_id,game_id" });
+  if (!rows.length) return [] as string[];
+  const { error } = await serviceClient.from("list_items").upsert(rows, { onConflict: "list_id,game_id" });
+  if (error) throw new Error(error.message);
+  return rows.map((row) => row.game_id);
 }
 
 export async function syncDefaultProfileLists(
@@ -241,24 +256,11 @@ async function ensureDefaultProfileList(
 
   if (existingError) throw new Error(existingError.message);
 
+  // Se reutiliza la lista más antigua con ese título. No se borran "duplicados" ni se
+  // fuerza la visibilidad: pueden ser listas creadas a mano por el usuario con el mismo
+  // nombre, o listas que el usuario ha hecho privadas a propósito.
   const existing = (matches ?? [])[0] ?? null;
-  const duplicates = (matches ?? []).slice(1);
-  if (duplicates.length) {
-    const sql = createSqlClient();
-    await sql.query(
-      "delete from lists where id = any($1::uuid[])",
-      [duplicates.map((row: { id: string }) => row.id)]
-    );
-  }
-
-  if (existing) {
-    const { error } = await serviceClient
-      .from("lists")
-      .update({ description: list.description, is_public: true })
-      .eq("id", existing.id);
-    if (error) throw new Error(error.message);
-    return existing;
-  }
+  if (existing) return existing;
 
   const slug = await getAvailableListSlug(serviceClient, `${profile.username}-${slugify(list.title)}`);
   const { data, error } = await serviceClient
@@ -301,17 +303,35 @@ async function replaceListGameIds(
   listId: string,
   gameIds: string[]
 ) {
-  const { error: deleteError } = await serviceClient.from("list_items").delete().eq("list_id", listId);
-  if (deleteError) throw new Error(deleteError.message);
+  // Sincronización por diferencias (en vez de borrar todo y reinsertar): dos peticiones
+  // simultáneas ya no chocan con la clave única (list_id, game_id) ni dejan la lista vacía.
+  const desired = Array.from(new Set(gameIds));
+  const { data: current, error: currentError } = await serviceClient
+    .from("list_items")
+    .select("game_id")
+    .eq("list_id", listId);
+  if (currentError) throw new Error(currentError.message);
 
-  const rows = Array.from(new Set(gameIds)).map((gameId, index) => ({
+  const desiredSet = new Set(desired);
+  const stale = (current ?? [])
+    .map((row: { game_id: string }) => row.game_id)
+    .filter((gameId: string) => !desiredSet.has(gameId));
+  if (stale.length) {
+    const { error: deleteError } = await serviceClient
+      .from("list_items")
+      .delete()
+      .eq("list_id", listId)
+      .in("game_id", stale);
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  if (!desired.length) return;
+  const rows = desired.map((gameId, index) => ({
     list_id: listId,
     game_id: gameId,
     position: index + 1
   }));
-
-  if (!rows.length) return;
-  const { error } = await serviceClient.from("list_items").insert(rows);
+  const { error } = await serviceClient.from("list_items").upsert(rows, { onConflict: "list_id,game_id" });
   if (error) throw new Error(error.message);
 }
 

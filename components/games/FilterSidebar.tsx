@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,17 @@ const filterGroups = {
   platform: {
     label: "Plataforma",
     icon: PlatformIcon,
-    values: ["PC", "PlayStation 5", "Xbox Series", "Nintendo Switch", "Mobile"]
+    // Los valores son los nombres canónicos de IGDB: así el filtro coincide igual en
+    // Neon (nombre exacto), IGDB (resolución por nombre) y el catálogo local.
+    values: [
+      { label: "PC", value: "PC (Microsoft Windows)" },
+      { label: "PlayStation 5", value: "PlayStation 5" },
+      { label: "PlayStation 4", value: "PlayStation 4" },
+      { label: "Xbox Series", value: "Xbox Series X|S" },
+      { label: "Nintendo Switch", value: "Nintendo Switch" },
+      { label: "Android", value: "Android" },
+      { label: "iOS", value: "iOS" }
+    ]
   },
   genre: {
     label: "Género",
@@ -72,6 +82,28 @@ export function FilterSidebar() {
     else params.set("sort", value);
     router.push(params.toString() ? `${pathname}?${params}` : pathname);
   }
+
+  function clearAllHref() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("page");
+    for (const key of trackedKeys) params.delete(key);
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   const activeFilters = trackedKeys.filter((key) => searchParams.get(key));
   const activeCount = activeFilters.length;
@@ -194,7 +226,7 @@ export function FilterSidebar() {
 
       {activeCount > 0 && (
         <div className="border-t border-white/5 pt-5">
-          <Button asChild href="/games" variant="secondary" className="w-full gap-2">
+          <Button asChild href={clearAllHref()} variant="secondary" className="w-full gap-2">
             <span className="inline-flex items-center justify-center gap-2">
               <ClearIcon />
               Limpiar todos los filtros
@@ -207,7 +239,13 @@ export function FilterSidebar() {
 
   return (
     <>
-      <Button variant="secondary" className="mb-4 inline-flex items-center gap-2 lg:hidden" onClick={() => setOpen(true)}>
+      <Button
+        variant="secondary"
+        className="inline-flex items-center gap-2 lg:hidden"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
         <FilterIcon />
         Filtros
         {activeCount > 0 && (
@@ -216,16 +254,21 @@ export function FilterSidebar() {
           </span>
         )}
       </Button>
-      <div className="hidden lg:block">{content}</div>
+      <div className="surface-card hidden rounded-2xl p-5 lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+        {content}
+      </div>
       {open && (
         <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtros"
             className="ml-auto h-full w-[88vw] max-w-sm overflow-auto border-l border-white/10 bg-background p-5"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold">Filtros</h2>
-              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)} autoFocus>
                 Cerrar
               </Button>
             </div>

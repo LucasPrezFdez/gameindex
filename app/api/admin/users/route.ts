@@ -66,7 +66,7 @@ export async function GET(request: Request) {
               coalesce(u.email, p.username || '@mock.gameindex.local') as email,
               p.username,
               p.display_name,
-              p.created_at,
+              p.created_at
        from profiles p
        left join app_users u on u.id = p.id
        ${whereClause}

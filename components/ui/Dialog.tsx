@@ -29,9 +29,15 @@ export function Dialog({ open, onClose, title, description, size = "md", childre
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    const handleClose = () => onClose();
-    node.addEventListener("close", handleClose);
-    return () => node.removeEventListener("close", handleClose);
+    // Escape dispara "cancel": se intercepta para que sea el padre quien decida cerrar.
+    // Si el padre lo ignora (p. ej. mientras envía un formulario), el <dialog> nativo ya no
+    // se cierra por su cuenta dejando el estado `open` desincronizado.
+    const handleCancel = (event: Event) => {
+      event.preventDefault();
+      onClose();
+    };
+    node.addEventListener("cancel", handleCancel);
+    return () => node.removeEventListener("cancel", handleCancel);
   }, [onClose]);
 
   function handleBackdropClick(event: React.MouseEvent<HTMLDialogElement>) {
@@ -43,7 +49,7 @@ export function Dialog({ open, onClose, title, description, size = "md", childre
       ref={ref}
       onClick={handleBackdropClick}
       className={cn(
-        "m-auto rounded-2xl border border-white/[0.08] bg-background text-foreground shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop:bg-black/70 backdrop:backdrop-blur-sm open:animate-in fade-in",
+        "m-auto rounded-2xl border border-white/[0.08] bg-background text-foreground shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop:bg-black/70 backdrop:backdrop-blur-sm",
         size === "sm" && "w-[calc(100%-2rem)] max-w-sm",
         size === "md" && "w-[calc(100%-2rem)] max-w-md",
         size === "lg" && "w-[calc(100%-2rem)] max-w-2xl",

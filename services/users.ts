@@ -14,12 +14,8 @@ import {
   createSqlClient,
 } from "@/services/database";
 import { profileFromRow, reviewFromRow } from "@/services/community";
-import {
-  dedupeListsByTitle,
-  listFromRow,
-  syncDefaultProfileLists,
-} from "@/services/lists";
-import { getAdminEmailSet, isEmailAdmin } from "@/services/auth";
+import { dedupeListsByTitle, listFromRow } from "@/services/lists";
+import { getAdminEmailSet } from "@/services/auth";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
   game?: ActivityEvent["game"] | null;
@@ -74,10 +70,8 @@ async function loadPublicUserProfileFromDatabase(
   if (error) throw new Error(error.message);
   if (!profile) return null;
 
-  await syncDefaultProfileLists(serviceClient, {
-    id: profile.id,
-    username: profile.username,
-  });
+  // Las listas automáticas (Favoritos, Jugando…) se sincronizan cuando el propio usuario
+  // cambia su biblioteca o valora un juego, no al visitar su perfil público.
 
   const [
     ratings,

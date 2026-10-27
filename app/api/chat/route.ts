@@ -989,10 +989,10 @@ async function buildUserContext(
         .eq("id", userId)
         .maybeSingle(),
       client
-        .from("user_games")
-        .select("status,updated_at,games(title)")
+        .from("user_game_statuses")
+        .select("status,created_at,games(title)")
         .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(8),
     ]);
 

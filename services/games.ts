@@ -334,6 +334,8 @@ export async function getSimilarGames(game: Game, limit = 6): Promise<Game[]> {
 
 export async function getGameBySlug(slug: string) {
   const fromDatabase = await getGameBySlugFromDatabase(slug);
+  // Un juego ocultado por un admin no debe reaparecer vía IGDB/RAWG/fallback.
+  if (fromDatabase === HIDDEN_GAME) return null;
   if (fromDatabase) return fromDatabase;
 
   try {
@@ -550,17 +552,19 @@ export async function getPlatformBySlug(slug: string): Promise<{ id: string; slu
   return null;
 }
 
-async function getGameBySlugFromDatabase(slug: string): Promise<Game | null> {
+const HIDDEN_GAME = Symbol("hidden-game");
+
+async function getGameBySlugFromDatabase(slug: string): Promise<Game | typeof HIDDEN_GAME | null> {
   try {
     const client = createServiceDatabaseClient();
     const { data, error } = await client
       .from("games")
       .select("*, game_platforms(platforms(name)), game_genres(genres(name)), game_companies(role, companies(name))")
       .eq("slug", slug)
-      .eq("is_hidden", false)
       .maybeSingle();
 
     if (error || !data) return null;
+    if (data.is_hidden) return HIDDEN_GAME;
     return gameFromDatabaseRow(data);
   } catch {
     return null;

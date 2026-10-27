@@ -36,7 +36,9 @@ Next.js 15 App Router + React 19 + TS strict. Path alias `@/*` points to repo ro
 3. **IGDB** (`services/igdb.ts`) — primary external source.
 4. **RAWG** (`services/rawg.ts`) — secondary external source, also seeds the `/games` listing.
 
-Each result carries a `source: "meili" | "neon" | "igdb" | "rawg" | "none"` tag. `services/cache.ts` decides when a Neon-cached row is stale (`shouldRefreshExternalGame`, default TTL 24h) and triggers a re-fetch + re-index. When adding a new feature that reads games, **call into `services/games.ts`**, do not hit IGDB/RAWG directly — the cascade and indexing live there.
+Each result carries a `source: "meili" | "neon" | "igdb" | "rawg" | "fallback" | "none"` tag (`fallback` = local catalog in `data/fallback-games.ts`). `services/cache.ts` decides when a Neon-cached row is stale (`shouldRefreshExternalGame`, default TTL 24h) and triggers a re-fetch + re-index. When adding a new feature that reads games, **call into `services/games.ts`**, do not hit IGDB/RAWG directly — the cascade and indexing live there.
+
+Games are only ever written to the `games` table from server-resolved catalog data: `ensureGame()` in `services/community.ts` resolves the slug through `services/games.getGameBySlug` and ignores any game payload sent by the client (unknown slug → `GameNotFoundError` → 404). A game with `is_hidden = true` makes `getGameBySlug` return `null` instead of falling through to IGDB/RAWG.
 
 `data/games.ts` exports the canonical `Game` / `GameSort` / `GameStatus` types consumed across the app, plus a tiny built-in fallback list. `data/fallback-games.ts` and `data/fallback-users.ts` hold the larger mock catalog and the 50 public mock profiles (sown into Neon by `scripts/seed-fallback-content.ts`). `data/community.ts` defines list/review/rating types used by the social layer.
 
@@ -45,7 +47,7 @@ Each result carries a `source: "meili" | "neon" | "igdb" | "rawg" | "none"` tag.
 Custom auth, not NextAuth. `services/auth.ts` mints HMAC-signed tokens (`AUTH_SECRET`), stores users in the `app_users` table (Neon) with `scrypt` password hashes, and `profiles` holds public profile data. The session cookie is `gameindex-auth-token`.
 
 - **Server**: read session via `services/community.ts` → `getOptionalUserIdFromRequest(request)` for optional auth, or the stricter helpers in `services/auth.ts` for required auth. `services/auth-server.ts` centralizes admin-only helpers.
-- **Middleware**: `middleware.ts` gates `/me/*` and `/onboarding/*` (token present?) and `/admin/*` (token + `isAdmin: true` claim in JWT payload, expiry check). Every other route handles auth itself.
+- **Middleware**: `middleware.ts` gates `/me/*` and `/onboarding/*` (token present?) and `/admin/*` (HMAC signature verified with Web Crypto + `isAdmin: true` claim + expiry; it must use the same secret resolution as `getAuthSecret()` in `services/auth.ts`). Every other route handles auth itself. `getUserFromToken()` returns `null` for banned users, so a ban also kills sessions that are already open.
 - **Browser**: `services/auth-browser.ts` + `hooks/useAuthSession.ts` for client-side session state.
 - **Database client**: prefer `createServiceDatabaseClient()` (Supabase-style) or `createSqlClient()` (raw SQL) from `services/database.ts`. Don't import `@neondatabase/serverless` directly elsewhere.
 
@@ -110,7 +112,9 @@ When adding an admin mutation, write to `admin_audit_log` through `services/admi
 - `lib/validation.ts`, `lib/sanitize-review.ts` — input validation and HTML sanitization for review bodies (Tiptap-produced).
 - `lib/theme.ts` — `arcadeTheme` tokens, shared `useTheme()` context.
 - `lib/ranking.ts` — score / popularity math for the rankings pages.
-- `lib/utils.ts`, `lib/site.ts` — `cn()`, site-wide constants.
+- `lib/utils.ts`, `lib/site.ts` — `cn()`, `formatReleaseDate()`, `scoreAccent()`, site-wide constants.
+- `lib/labels.ts` — Spanish display labels for IGDB/RAWG genres and platforms (`genreLabel`, `genreLabelList`, `platformLabel`…). Use them when **rendering**; keep the original values in filters, URLs and queries.
+- `lib/review-filters.ts` — sort/spoiler options shared by the client `ReviewFilters` and the server reviews page (values exported from a `"use client"` file can't be used as data in server components).
 
 ### Database schema
 

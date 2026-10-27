@@ -10,7 +10,9 @@ const actions: Array<{ status: UserGameStatus; label: string }> = [
   { status: "want_to_play", label: "Pendiente" },
   { status: "playing", label: "Jugando" },
   { status: "completed", label: "Completado" },
-  { status: "favorite", label: "Favorito" }
+  { status: "favorite", label: "Favorito" },
+  { status: "paused", label: "Pausado" },
+  { status: "dropped", label: "Abandonado" }
 ];
 
 export function GameLibraryActions({ game }: { game: Game }) {

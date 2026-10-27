@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Game } from "@/data/games";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { cn, formatCompactNumber } from "@/lib/utils";
+import { genreLabelList } from "@/lib/labels";
 
 const MEDAL = [
   { num: "text-[#F5C842] font-black", row: "bg-[#F5C842]/[0.04] hover:bg-[#F5C842]/[0.07]" },
@@ -61,7 +62,7 @@ export function RankingTable({ games }: { games: Game[] }) {
                         {game.title}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted/60">
-                        {game.year} · {game.genres.slice(0, 2).join(", ")}
+                        {game.year} · {genreLabelList(game.genres).slice(0, 2).join(", ")}
                       </span>
                     </span>
                   </Link>
